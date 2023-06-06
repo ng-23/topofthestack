@@ -21,7 +21,7 @@ class PublishedBlogFactory
         $int3 = rand(0, 100000);
 
         $file_name = sha1($author_id . time() . $int1 . $int2 . $int3 . ".html");
-        $uri = "/resources/blogs/" . $file_name;
-        return new PublishedBlog($this->html_purifier, $author_id, $uri, $title);
+
+        return new PublishedBlog($this->html_purifier, $author_id, $file_name, $title);
     }
 }
