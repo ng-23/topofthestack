@@ -12,6 +12,8 @@ class PublishedBlog extends Entity
 
     private HTMLPurifier $html_purifier;
     private int $author_id;
+    // consider changing body_uri to body_filename or something
+    // since we're not including the ../../resources/blogs as part of the uri anymore (the mapper deals with that...)
     private String $body_uri, $body_contents;
     private String $title;
     private array $tags;
