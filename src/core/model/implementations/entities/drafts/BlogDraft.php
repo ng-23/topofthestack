@@ -9,20 +9,26 @@ class BlogDraft extends Entity
 {
     public const DATE_FORMAT = "Y-m-d";
     public const MAX_TAGS = 3;
+    public const MAX_NAME_LEN = 16;
+    public const MAX_TITLE_LEN = 100;
+    public const MAX_URI_LEN = 255;
 
     private HTMLPurifier $html_purifier;
     private int $drafter_id;
     private ?int $published_blog_id;
-    private String $body_uri;
-    private String $body_contents;
+    private String $body_uri, $body_contents;
+    /**
+     * this is basically like a file name for the draft
+     * for published blogs, this is equivalent to the title
+     * which is why it isn't a separate field in that class
+     * like a title, draft names must be unique (per user)
+     */
     private String $name;
-    private ?String $title;
+    private ?String $title; // this can be null until the user devices to push the draft to a published blog
     private array $tags;
     private DateTimeImmutable $created_at, $updated_at;
 
-    private const MAX_NAME_LEN = 16;
-    private const MAX_TITLE_LEN = 100;
-    private const MAX_URI_LEN = 255;
+    
 
     public function __construct(HTMLPurifier $html_purifier, int $drafter_id, String $body_uri, String $name, ?String $draft_id = NULL)
     {
@@ -111,6 +117,10 @@ class BlogDraft extends Entity
     public function getUpdatedAt(): DateTimeImmutable
     {
         return $this->updated_at;
+    }
+
+    public function setId(?int $draft_id) {
+        $this->id = $draft_id;
     }
 
     public function setBodyUri(String $uri)
