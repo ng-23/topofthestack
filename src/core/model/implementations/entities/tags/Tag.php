@@ -43,6 +43,10 @@ class Tag extends Entity{
         return $this->updated_at;
     }
 
+    public function setId(?int $tag_id) {
+        $this->id = $tag_id;
+    }
+
     public function setName(String $name) {
         $is_valid = preg_match(self::VALID_NAME_REGEX, $name);
         if(!$is_valid) {
