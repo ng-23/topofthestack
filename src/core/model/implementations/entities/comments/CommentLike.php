@@ -18,7 +18,12 @@ class CommentLike extends Entity
         $this->id = $comment_id;
         $this->user_id = $user_id;
 
-        $this->setCreatedAt();
+        $this->setCreatedAt(NULL);
+    }
+
+    public function getId(): ?int
+    {
+        return $this->getCommentId();
     }
 
     public function getCommentId(): int
@@ -36,7 +41,7 @@ class CommentLike extends Entity
         return $this->created_at;
     }
 
-    public function setCreatedAt(?DateTimeImmutable $date = NULL)
+    public function setCreatedAt(?DateTimeImmutable $date)
     {
         if ($date) {
             $this->created_at = $date;
