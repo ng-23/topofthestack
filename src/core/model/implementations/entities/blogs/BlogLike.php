@@ -18,7 +18,7 @@ class BlogLike extends Entity
         $this->id = $blog_id;
         $this->user_id = $user_id;
 
-        $this->setCreatedAt();
+        $this->setCreatedAt(NULL);
     }
 
     public function getBlogId(): int
@@ -36,7 +36,7 @@ class BlogLike extends Entity
         return $this->created_at;
     }
 
-    public function setCreatedAt(?DateTimeImmutable $date = NULL)
+    public function setCreatedAt(?DateTimeImmutable $date)
     {
         if ($date) {
             $this->created_at = $date;
