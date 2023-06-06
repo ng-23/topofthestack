@@ -4,12 +4,23 @@ declare(strict_types=1);
 
 require_once realpath(dirname(__FILE__) . '../../../') . '/abstractions/mappers/DataMapper.php';
 require_once realpath(dirname(__FILE__) . '../../') . '/entities/tags/Tag.php';
+require_once realpath(dirname(__FILE__) . '../../') . '/entities/tags/TagFactory.php';
 
 class TagMapper extends DataMapper
 {
+    public TagFactory $tag_factory;
+
+    public function __construct(PDO $db_connection, TagFactory $tag_factory)
+    {
+        parent::__construct($db_connection);
+        $this->tag_factory = $tag_factory;
+    }
+
     public function tagFromData(array $tag_data)
     {
-        $tag = new Tag($tag_data["name"], $tag_data["tag_id"]);
+        $tag = $this->tag_factory->makeTag();
+        $tag->setId($tag_data["tag_id"]);
+        $tag->setName($tag_data["name"]);
 
         $tag->setTotalTaggedWith($tag_data["total_tagged_with"]);
         $tag->setTaggedWithToday($tag_data["tagged_with_today"]);
