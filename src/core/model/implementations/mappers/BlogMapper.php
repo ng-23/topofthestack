@@ -15,18 +15,16 @@ class BlogMapper extends DataMapper
     public const SORT_ASC_ORDER = 1;
     public const SORT_DESC_ORDER = 2;
     public const SORT_NO_ORDER = 3;
+    public const BODY_CONTENTS_DIR = "../../../resources/blogs";
 
-    private String $body_contents_dir;
     private PublishedBlogFactory $blog_factory;
     private TagMapper $tag_mapper;
 
-    public function __construct(PDO $db_connection, PublishedBlogFactory $blog_factory, TagMapper $tag_mapper, String $body_contents_dir)
+    public function __construct(PDO $db_connection, PublishedBlogFactory $blog_factory, TagMapper $tag_mapper)
     {
         $this->db_connection = $db_connection;
         $this->blog_factory = $blog_factory;
         $this->tag_mapper = $tag_mapper;
-        $this->body_contents_dir = $body_contents_dir;
-        //realpath(dirname(__FILE__) . '../../../../') . "/resources/blogs"
     }
 
     private function blogFromData(array $blog_data): PublishedBlog
@@ -116,23 +114,6 @@ class BlogMapper extends DataMapper
         return $exists;
     }
 
-    private function validateTags(PublishedBlog $blog)
-    {
-        $tag_names = $blog->getTags();
-
-        foreach ($tag_names as $name) {
-            $tag = $this->tag_mapper->fetchByName($name);
-
-            if (!$this->tag_mapper->existsById($tag->getId())) {
-                throw new Exception();
-            }
-
-            if (!$this->tag_mapper->existsByName($tag->getName())) {
-                throw new Exception();
-            }
-        }
-    }
-
     private function sortOrderToString(int $sort_order): ?String
     {
         $sort_order_str = "";
@@ -156,7 +137,7 @@ class BlogMapper extends DataMapper
 
     private function writeBodyContents(PublishedBlog $blog)
     {
-        $body_contents_file = fopen($this->body_contents_dir . "/{$blog->getBodyUri()}", "w");
+        $body_contents_file = fopen(self::BODY_CONTENTS_DIR . "/{$blog->getBodyUri()}", "w");
         fwrite($body_contents_file, $blog->getBodyContents());
         fclose($body_contents_file);
     }
@@ -207,7 +188,11 @@ class BlogMapper extends DataMapper
             throw new Exception();
         }
 
-        $this->validateTags($blog);
+        foreach ($blog->getTags() as $tag_name) {
+            if (!$this->tag_mapper->fetchByName($tag_name)) {
+                throw new Exception();
+            }
+        }
 
         $query = "INSERT INTO `published_blogs` (`blog_id`, `author_id`, `body_uri`, `title`, `comments_today`, 
                 `likes_today`, `views_today`, `total_comments`, `total_likes`, `total_views`, `created_at`, `updated_at`) 
@@ -361,9 +346,64 @@ class BlogMapper extends DataMapper
         return $blogs;
     }
 
-    // maybe change this so $month is $when and there's more options
-    public function fetchByAuthorAndCreatedAt(int $author_id, int $month, int $amount = 1, int $offset = 0)
+    public function fetchByAuthorAndCreatedOn(int $author_id, DateTimeImmutable $date, int $amount = 1, int $offset = 0)
     {
+        if ($amount < 0 || $offset < 0) {
+            throw new Exception();
+        }
+
+        $query = "SELECT `blog_id`, `author_id`, `body_uri`, `title`, `comments_today`, `likes_today`, 
+                `views_today`, `total_comments`, `total_likes`, `total_views`, 
+                `created_at`, `updated_at` FROM `published_blogs` 
+                WHERE `author_id` = :author_id AND (`created_at` = :date) LIMIT :lim OFFSET :off";
+
+        $blogs = [];
+
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(":author_id", $author_id, PDO::PARAM_INT);
+        $stmt->bindParam(":date", $date, PDO::PARAM_STR);
+        $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
+        $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        if ($stmt->rowCount() >= 1) {
+            $blogs_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $blogs = $this->blogsFromData($blogs_data);
+        }
+
+        return $blogs;
+    }
+
+    public function fetchByAuthorAndCreatedBetween(int $author_id, DateTimeImmutable $date1, DateTimeImmutable $date2, int $amount = 1, int $offset = 0)
+    {
+        if ($amount < 0 || $offset < 0) {
+            throw new Exception();
+        }
+
+        $query = "SELECT `blog_id`, `author_id`, `body_uri`, `title`, `comments_today`, `likes_today`, 
+                `views_today`, `total_comments`, `total_likes`, `total_views`, 
+                `created_at`, `updated_at` FROM `published_blogs` 
+                WHERE `author_id` = :author_id AND (`created_at` > :date1 AND `created_at` < :date2) 
+                LIMIT :lim OFFSET :off";
+
+        $blogs = [];
+
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(":author_id", $author_id, PDO::PARAM_INT);
+        $stmt->bindParam(":date1", $date1, PDO::PARAM_STR);
+        $stmt->bindParam(":date2", $date2, PDO::PARAM_STR);
+        $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
+        $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        if ($stmt->rowCount() >= 1) {
+            $blogs_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $blogs = $this->blogsFromData($blogs_data);
+        }
+
+        return $blogs;
     }
 
     /**
@@ -535,24 +575,15 @@ class BlogMapper extends DataMapper
             throw new Exception();
         }
 
-        $base_query = "SELECT `blog_id`, `author_id`, `body_uri`, `title`, `comments_today`, `likes_today`, 
+        $query = "SELECT `blog_id`, `author_id`, `body_uri`, `title`, `comments_today`, `likes_today`, 
                     `views_today`, `total_comments`, `total_likes`, `total_views`, 
                     `created_at`, `updated_at` FROM `published_blogs` 
-                    WHERE :condition LIMIT :lim OFFSET :off";
-
-        $query = "";
-
-        $stmt = NULL;
+                    WHERE (`created_at` = :date) LIMIT :lim OFFSET :off";
 
         $blogs = [];
 
-
-        $condition = "(`created_at` = :date1)";
-
-        $query = str_replace(":condition", $condition, $base_query);
-
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":date1", $date, PDO::PARAM_STR);
+        $stmt->bindParam(":date", $date, PDO::PARAM_STR);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -572,20 +603,12 @@ class BlogMapper extends DataMapper
             throw new Exception();
         }
 
-        $base_query = "SELECT `blog_id`, `author_id`, `body_uri`, `title`, `comments_today`, `likes_today`, 
+        $query = "SELECT `blog_id`, `author_id`, `body_uri`, `title`, `comments_today`, `likes_today`, 
                     `views_today`, `total_comments`, `total_likes`, `total_views`, 
                     `created_at`, `updated_at` FROM `published_blogs` 
-                    WHERE :condition LIMIT :lim OFFSET :off";
-
-        $query = "";
-
-        $stmt = NULL;
+                    WHERE (`created_at` > :date1 AND `created_at` < :date2) LIMIT :lim OFFSET :off";
 
         $blogs = [];
-
-        $condition = "(`created_at > :date1 AND `created_at` < :date2)";
-
-        $query = str_replace(":condition", $condition, $base_query);
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":date1", $date1, PDO::PARAM_STR);
@@ -619,11 +642,15 @@ class BlogMapper extends DataMapper
             !$this->existsByAuthorAndTitle($blog->getAuthorId(), $blog->getTitle()) ? throw new Exception() : "";
         }
 
-        if ($this->existsByBodyUri($blog->getBodyUri())) {
+        if (!$this->existsByBodyUri($blog->getBodyUri())) {
             throw new Exception();
         }
 
-        $this->validateTags($blog);
+        foreach ($blog->getTags() as $tag_name) {
+            if (!$this->tag_mapper->fetchByName($tag_name)) {
+                throw new Exception();
+            }
+        }
 
         $query = "UPDATE `published_blogs` SET `title`=:title,`comments_today`=:cmmnts_today,`likes_today`=:likes_today,
                 `views_today`=:views_today,`total_comments`=:total_cmmnts,`total_likes`=:total_likes,`total_views`=:total_views,
@@ -685,7 +712,7 @@ class BlogMapper extends DataMapper
         if ($stmt->rowCount() >= 1) {
             $blog_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $blog = $this->blogsFromData($blog_data);
+            $blog = $this->blogFromData($blog_data);
         }
 
         return $blog;
