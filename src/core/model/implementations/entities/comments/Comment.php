@@ -7,16 +7,16 @@ require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entit
 class Comment extends Entity
 {
     public const DATE_FORMAT = "Y-m-d";
+    public const MAX_CONTENTS_LEN = 135;
 
     private int $commentor_id;
     private int $blog_id;
-    private String $text;
+    private String $contents;
     private int $total_likes;
     private DateTimeImmutable $created_at, $updated_at;
 
-    private const MAX_TEXT_LEN = 135;
 
-    public function __construct(int $commentor_id, int $blog_id, String $text, ?int $comment_id = NULL)
+    public function __construct(int $commentor_id, int $blog_id, String $contents, ?int $comment_id = NULL)
     {
         $this->id = $comment_id;
         $this->commentor_id = $commentor_id;
@@ -24,9 +24,9 @@ class Comment extends Entity
 
         $this->total_likes = 0;
 
-        $this->setText($text);
-        $this->setCreatedAt();
-        $this->setUpdatedAt();
+        $this->setContents($contents);
+        $this->setCreatedAt(NULL);
+        $this->setUpdatedAt(NULL);
     }
 
     public function getCommentorId(): int
@@ -39,9 +39,9 @@ class Comment extends Entity
         return $this->blog_id;
     }
 
-    public function getText(): String
+    public function getContents(): String
     {
-        return $this->text;
+        return $this->contents;
     }
 
     public function getTotalLikes(): int
@@ -59,15 +59,20 @@ class Comment extends Entity
         return $this->updated_at;
     }
 
-    public function setText(String $text)
+    public function setId(?int $comment_id)
     {
-        $text_len = strlen($text);
+        $this->id = $comment_id;
+    }
 
-        if ($text_len == 0 or $text_len > self::MAX_TEXT_LEN) {
+    public function setContents(String $contents)
+    {
+        $contents_len = strlen($contents);
+
+        if ($contents_len == 0 or $contents_len > self::MAX_CONTENTS_LEN) {
             throw new LengthException();
         }
 
-        $this->text = $text;
+        $this->contents = $contents;
     }
 
     public function setTotalLikes(int $likes)
@@ -78,7 +83,7 @@ class Comment extends Entity
         $this->total_likes = $likes;
     }
 
-    public function setCreatedAt(?DateTimeImmutable $date = NULL)
+    public function setCreatedAt(?DateTimeImmutable $date)
     {
         if ($date) {
             $this->created_at = $date;
@@ -87,7 +92,7 @@ class Comment extends Entity
         }
     }
 
-    public function setUpdatedAt(?DateTimeImmutable $date = NULL)
+    public function setUpdatedAt(?DateTimeImmutable $date)
     {
         if ($date) {
             $this->updated_at = $date;
