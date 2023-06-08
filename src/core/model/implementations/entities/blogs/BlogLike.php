@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare(strict_types = 1);
 
 require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entities/Entity.php';
 
@@ -19,6 +19,11 @@ class BlogLike extends Entity
         $this->user_id = $user_id;
 
         $this->setCreatedAt(NULL);
+    }
+
+    public function getId(): int
+    {
+        return $this->getBlogId();
     }
 
     public function getBlogId(): int
