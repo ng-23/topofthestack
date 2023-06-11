@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare(strict_types = 1);
 
 require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entities/Entity.php';
 require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/username_generator.php';
@@ -8,15 +8,12 @@ require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/Jwt.php';
 
 class User extends Entity
 {
-    public const DATE_FORMAT = "Y-m-d";
-
-    private const MIN_DISPLAY_NAME_LEN = 3;
-    private const MAX_DISPLAY_NAME_LEN = 32;
-    private const VALID_DISPLAY_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9._-]*$#";
-
-    private const MAX_BIO_LEN = 175;
-
-    private const MAX_COUNTRY_CODE_LEN = 2;
+    public const DATE_FORMAT = "Y-m-d H:i:s";
+    public const MIN_DISPLAY_NAME_LEN = 3;
+    public const MAX_DISPLAY_NAME_LEN = 32;
+    public const VALID_DISPLAY_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9._-]*$#";
+    public const MAX_BIO_LEN = 175;
+    public const MAX_COUNTRY_CODE_LEN = 2;
 
     private String $display_name;
     private String $password_hash;
