@@ -6,6 +6,8 @@ require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entit
 
 class Follower extends Entity
 {
+    public const DATE_FORMAT = "Y-m-d H:i:s";
+
     // here, id field is implied to be that of the follower
 
     private int $followee_id; // this is who the follower is following
@@ -29,7 +31,8 @@ class Follower extends Entity
         return $this->followee_id;
     }
 
-    public function getCreatedAt(): DateTimeImmutable {
+    public function getCreatedAt(): DateTimeImmutable
+    {
         return $this->created_at;
     }
 
