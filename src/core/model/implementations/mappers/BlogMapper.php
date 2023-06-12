@@ -175,8 +175,10 @@ class BlogMapper extends DataMapper
             throw new Exception();
         }
 
-        if ($this->existsById($blog->getId())) {
-            throw new Exception();
+        $blog_id_param_type = PDO::PARAM_NULL;
+        if ($blog->getId()) {
+            $this->existsById($blog->getId()) ? throw new Exception() : '';
+            $blog_id_param_type = PDO::PARAM_INT;
         }
 
         if ($this->existsByAuthorAndTitle($blog->getAuthorId(), $blog->getTitle())) {
@@ -199,7 +201,7 @@ class BlogMapper extends DataMapper
                 :total_likes, :total_views, :created_at, :updated_at)";
 
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":blog_id", $blog->getId(), PDO::PARAM_INT);
+        $stmt->bindParam(":blog_id", $blog->getId(), $blog_id_param_type);
         $stmt->bindParam(":author_id", $blog->getAuthorId(), PDO::PARAM_INT);
         $stmt->bindParam(":body_uri", $blog->getBodyUri(), PDO::PARAM_STR);
         $stmt->bindParam(":title", $blog->getTitle(), PDO::PARAM_STR);
@@ -309,8 +311,6 @@ class BlogMapper extends DataMapper
         return $blogs;
     }
 
-    // see https://stackoverflow.com/questions/6624704/data-mapper-pattern-complexe-query-from-service-layer#comment7833999_6626011
-    // see https://stackoverflow.com/questions/11942842/who-should-handle-the-conditions-in-complex-queries-the-data-mapper-or-the-serv
     public function fetchByAuthorAndTitle(int $author_id, String $title, bool $exact_match = false)
     {
         $blogs = [];
@@ -410,8 +410,6 @@ class BlogMapper extends DataMapper
      */
     public function fetchByTagNames(array $tag_names, int $amount = 1, int $offset = 0): array
     {
-        // uses a self-join; see https://www.w3schools.com/sql/sql_join_self.asp
-
         $blogs = [];
 
         $numb_tags = sizeof($tag_names);
@@ -631,7 +629,7 @@ class BlogMapper extends DataMapper
             throw new Exception();
         }
 
-        if (!$this->existsById($blog->getId())) {
+        if (!$blog->getId() or !$this->existsById($blog->getId())) {
             throw new Exception();
         }
 
