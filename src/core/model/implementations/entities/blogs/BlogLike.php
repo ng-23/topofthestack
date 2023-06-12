@@ -1,12 +1,12 @@
 <?php
 
-declare(strict_types = 1);
+declare(strict_types=1);
 
 require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entities/Entity.php';
 
 class BlogLike extends Entity
 {
-    public const DATE_FORMAT = "Y-m-d";
+    public const DATE_FORMAT = "Y-m-d H:i:s";
 
     // here, id field is implied to be published blog id
 
