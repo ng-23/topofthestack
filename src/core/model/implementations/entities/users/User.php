@@ -13,7 +13,7 @@ class User extends Entity
     public const MAX_DISPLAY_NAME_LEN = 32;
     public const VALID_DISPLAY_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9._-]*$#";
     public const MAX_BIO_LEN = 175;
-    public const MAX_COUNTRY_CODE_LEN = 2;
+    public const COUNTRY_CODE_LEN = 2;
 
     private String $display_name;
     private String $password_hash;
@@ -162,7 +162,7 @@ class User extends Entity
 
     public function setCountryCode(?String $country_code)
     {
-        if ($country_code and strlen($country_code) > self::MAX_COUNTRY_CODE_LEN) {
+        if ($country_code and strlen($country_code) != self::COUNTRY_CODE_LEN) {
             throw new LengthException();
         }
 
