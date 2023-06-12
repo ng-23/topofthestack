@@ -22,12 +22,12 @@ class CommentLikeMapper extends DataMapper
     private function commentLikeFromData(array $like_data): CommentLike
     {
         $like = new CommentLike($like_data["comment_id"], $like_data["user_id"]);
-        $like->setCreatedAt(DateTimeImmutable::createFromFormat(CommentLike::DATE_FORMAT, $like_data["created_at"]));
+        $like->setCreatedAt(new DateTimeImmutable(date(CommentLike::DATE_FORMAT, $like_data["created_at"])));
 
         return $like;
     }
 
-    private function commentLikesFromData(array $likes_data)
+    private function commentLikesFromData(array $likes_data): array
     {
         $likes = [];
 
@@ -40,11 +40,11 @@ class CommentLikeMapper extends DataMapper
         return $likes;
     }
 
-    public function existsByUserAndComment(int $user_id, int $comment_id): bool
+    public function existsByUserAndCommentId(int $user_id, int $comment_id): bool
     {
         $exists = false;
 
-        if ($this->fetchByUserAndComment($user_id, $comment_id)) {
+        if ($this->fetchByUserAndCommentId($user_id, $comment_id)) {
             $exists = true;
         }
 
@@ -62,7 +62,7 @@ class CommentLikeMapper extends DataMapper
         }
 
         // you can't like the same comment twice
-        if ($this->existsByUserAndComment($like->getUserId(), $like->getCommentId())) {
+        if ($this->existsByUserAndCommentId($like->getUserId(), $like->getCommentId())) {
             throw new Exception();
         }
 
@@ -71,7 +71,7 @@ class CommentLikeMapper extends DataMapper
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":comment_id", $like->getCommentId(), PDO::PARAM_INT);
         $stmt->bindParam(":user_id", $like->getUserId(), PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $like->getCreatedAt(), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $like->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
     }
 
@@ -129,7 +129,7 @@ class CommentLikeMapper extends DataMapper
         return $likes;
     }
 
-    public function fetchByUserAndComment(int $user_id, int $comment_id)
+    public function fetchByUserAndCommentId(int $user_id, int $comment_id)
     {
         $like = NULL;
 
