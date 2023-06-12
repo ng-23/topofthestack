@@ -6,7 +6,7 @@ require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entit
 
 class CommentLike extends Entity
 {
-    public const DATE_FORMAT = "Y-m-d";
+    public const DATE_FORMAT = "Y-m-d H:i:s";
 
     // here, id field is implied to be the comment id...
 
