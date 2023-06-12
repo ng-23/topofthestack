@@ -7,16 +7,14 @@ require_once realpath(dirname(__FILE__) . '../../../../../../../') . '/vendor/au
 
 class PublishedBlog extends Entity
 {
-    public const DATE_FORMAT = "Y-m-d";
+    public const DATE_FORMAT = "Y-m-d H:i:s";
     public const MAX_TAGS = 3;
 
     private HTMLPurifier $html_purifier;
     private int $author_id;
-    // consider changing body_uri to body_filename or something
-    // since we're not including the ../../resources/blogs as part of the uri anymore (the mapper deals with that...)
     private String $body_uri, $body_contents;
     private String $title;
-    private array $tags;
+    private array $tags; // consider making this an array of actual Tag objects...
     private int $total_comments, $total_likes, $total_views;
     private int $comments_today, $likes_today, $views_today;
     private DateTimeImmutable $created_at, $updated_at;
