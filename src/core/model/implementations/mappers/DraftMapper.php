@@ -37,8 +37,8 @@ class DraftMapper extends DataMapper
             $draft->addTag($tag->getName());
         }
 
-        $draft->setCreatedAt(DateTimeImmutable::createFromFormat(BlogDraft::DATE_FORMAT, $draft_data["created_at"]));
-        $draft->setUpdatedAt(DateTimeImmutable::createFromFormat(BlogDraft::DATE_FORMAT, $draft_data["updated_at"]));
+        $draft->setCreatedAt(new DateTimeImmutable(date(BlogDraft::DATE_FORMAT, $draft_data["created_at"])));
+        $draft->setUpdatedAt(new DateTimeImmutable(date(BlogDraft::DATE_FORMAT, $draft_data["updated_at"])));
 
         return $draft;
     }
@@ -168,8 +168,8 @@ class DraftMapper extends DataMapper
         $stmt->bindParam(":published_blog_id", $draft->getPublishedBlogId(), PDO::PARAM_INT);
         $stmt->bindParam(":name", $draft->getName(), PDO::PARAM_STR);
         $stmt->bindParam(":title", $draft->getTitle(), PDO::PARAM_STR);
-        $stmt->bindParam(":created_at", $draft->getCreatedAt(), PDO::PARAM_STR);
-        $stmt->bindParam(":updated_at", $draft->getUpdatedAt(), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $draft->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":updated_at", $draft->getUpdatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
 
         foreach ($draft->getTags() as $tag_name) {
@@ -211,13 +211,13 @@ class DraftMapper extends DataMapper
         $drafts = [];
 
         $query = "SELECT `draft_id`, `drafter_id`, `body_uri`, `published_blog_id`, 
-                `name`, `title`, `created_at`, `updated_at` FROM blog_drafts
-                WHERE drafter_id=? LIMIT ? OFFSET ?";
+                `name`, `title`, `created_at`, `updated_at` FROM `blog_drafts`
+                WHERE `drafter_id` = :drafter_id LIMIT :lim OFFSET :off";
 
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(1, $drafter_id, PDO::PARAM_INT);
-        $stmt->bindParam(2, $amount, PDO::PARAM_INT);
-        $stmt->bindParam(3, $offset, PDO::PARAM_INT);
+        $stmt->bindParam(":drafter_id", $drafter_id, PDO::PARAM_INT);
+        $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
+        $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
 
         if ($stmt->rowCount() >= 1) {
@@ -350,7 +350,7 @@ class DraftMapper extends DataMapper
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":drafter_id", $drafter_id, PDO::PARAM_INT);
-        $stmt->bindParam(":date", $date, PDO::PARAM_STR);
+        $stmt->bindParam(":date", $date->getTimestamp(), PDO::PARAM_INT);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -377,8 +377,8 @@ class DraftMapper extends DataMapper
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":drafter_id", $drafter_id, PDO::PARAM_INT);
-        $stmt->bindParam(":date1", $date1, PDO::PARAM_STR);
-        $stmt->bindParam(":date2", $date2, PDO::PARAM_STR);
+        $stmt->bindParam(":date1", $date1->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":date2", $date2->getTimestamp(), PDO::PARAM_INT);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -422,8 +422,8 @@ class DraftMapper extends DataMapper
         $stmt->bindParam(":pub_blog_id", $draft->getPublishedBlogId(), PDO::PARAM_INT);
         $stmt->bindParam(":name", $draft->getName(), PDO::PARAM_STR);
         $stmt->bindParam(":title", $draft->getTitle(), PDO::PARAM_STR);
-        $stmt->bindParam(":created_at", $draft->getCreatedAt(), PDO::PARAM_STR);
-        $stmt->bindParam(":updated_at", $draft->getUpdatedAt(), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $draft->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":updated_at", $draft->getUpdatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
 
         $new_tag_names = $draft->getTags();
