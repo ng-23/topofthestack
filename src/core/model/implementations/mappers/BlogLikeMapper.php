@@ -26,7 +26,8 @@ class BlogLikeMapper extends DataMapper
     private function blogLikeFromData(array $like_data): BlogLike
     {
         $like = new BlogLike($like_data["blog_id"], $like_data["user_id"]);
-        $like->setCreatedAt(DateTimeImmutable::createFromFormat(BlogLike::DATE_FORMAT, $like_data["created_at"]));
+        // have to wrap "created_at" in date() because it's stored as a BIGINT unix timestamp in the DB
+        $like->setCreatedAt(new DateTimeImmutable(date(BlogLike::DATE_FORMAT, $like_data["created_at"])));
 
         return $like;
     }
@@ -75,7 +76,8 @@ class BlogLikeMapper extends DataMapper
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":blog_id", $like->getBlogId(), PDO::PARAM_INT);
         $stmt->bindParam(":user_id", $like->getUserId(), PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $like->getCreatedAt(), PDO::PARAM_STR);
+        // have to do this conversion since the DB stores times as BIGINT unix timestamps
+        $stmt->bindParam(":created_at", $like->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
     }
 
