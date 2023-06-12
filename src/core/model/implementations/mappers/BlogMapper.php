@@ -37,9 +37,8 @@ class BlogMapper extends DataMapper
             $blog->addTag($tag->getName());
         }
 
-        // is it safe to assume Y-m-d format or should we check first?
-        $blog->setCreatedAt(DateTimeImmutable::createFromFormat(PublishedBlog::DATE_FORMAT, $blog_data["created_at"]));
-        $blog->setUpdatedAt(DateTimeImmutable::createFromFormat(PublishedBlog::DATE_FORMAT, $blog_data["updated_at"]));
+        $blog->setCreatedAt(new DateTimeImmutable(date(PublishedBlog::DATE_FORMAT, $blog_data["created_at"])));
+        $blog->setUpdatedAt(new DateTimeImmutable(date(PublishedBlog::DATE_FORMAT, $blog_data["updated_at"])));
 
         $blog->setTotalComments($blog_data["total_comments"]);
         $blog->setTotalViews($blog_data["total_views"]);
@@ -210,8 +209,8 @@ class BlogMapper extends DataMapper
         $stmt->bindParam(":total_cmmnts", $blog->getTotalComments(), PDO::PARAM_INT);
         $stmt->bindParam(":total_likes", $blog->getTotalLikes(), PDO::PARAM_INT);
         $stmt->bindParam(":total_views", $blog->getTotalViews(), PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $blog->getCreatedAt()->format(PublishedBlog::DATE_FORMAT), PDO::PARAM_STR);
-        $stmt->bindParam(":updated_at", $blog->getUpdatedAt()->format(PublishedBlog::DATE_FORMAT), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $blog->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":updated_at", $blog->getUpdatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
 
         foreach ($blog->getTags() as $tag_name) {
@@ -361,7 +360,7 @@ class BlogMapper extends DataMapper
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":author_id", $author_id, PDO::PARAM_INT);
-        $stmt->bindParam(":date", $date, PDO::PARAM_STR);
+        $stmt->bindParam(":date", $date->getTimestamp(), PDO::PARAM_INT);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -391,8 +390,8 @@ class BlogMapper extends DataMapper
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":author_id", $author_id, PDO::PARAM_INT);
-        $stmt->bindParam(":date1", $date1, PDO::PARAM_STR);
-        $stmt->bindParam(":date2", $date2, PDO::PARAM_STR);
+        $stmt->bindParam(":date1", $date1->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":date2", $date2->getTimestamp(), PDO::PARAM_INT);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -583,7 +582,7 @@ class BlogMapper extends DataMapper
         $blogs = [];
 
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":date", $date, PDO::PARAM_STR);
+        $stmt->bindParam(":date", $date->getTimestamp(), PDO::PARAM_INT);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -611,8 +610,8 @@ class BlogMapper extends DataMapper
         $blogs = [];
 
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":date1", $date1, PDO::PARAM_STR);
-        $stmt->bindParam(":date2", $date2, PDO::PARAM_STR);
+        $stmt->bindParam(":date1", $date1->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":date2", $date2->getTimestamp(), PDO::PARAM_INT);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -652,9 +651,9 @@ class BlogMapper extends DataMapper
             }
         }
 
-        $query = "UPDATE `published_blogs` SET `title`=:title,`comments_today`=:cmmnts_today,`likes_today`=:likes_today,
-                `views_today`=:views_today,`total_comments`=:total_cmmnts,`total_likes`=:total_likes,`total_views`=:total_views,
-                `created_at`=:created_at,`updated_at`=:updated_at WHERE `blog_id`=:blog_id";
+        $query = "UPDATE `published_blogs` SET `title`=:title, `comments_today`=:cmmnts_today, `likes_today`=:likes_today,
+                `views_today`=:views_today, `total_comments`=:total_cmmnts, `total_likes`=:total_likes, `total_views`=:total_views,
+                `created_at`=:created_at, `updated_at`=:updated_at WHERE `blog_id`=:blog_id";
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":blog_id", $blog->getId(), PDO::PARAM_INT);
@@ -665,8 +664,8 @@ class BlogMapper extends DataMapper
         $stmt->bindParam(":total_cmmnts", $blog->getTotalComments(), PDO::PARAM_INT);
         $stmt->bindParam(":total_likes", $blog->getTotalLikes(), PDO::PARAM_INT);
         $stmt->bindParam(":total_views", $blog->getTotalViews(), PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $blog->getCreatedAt()->format(PublishedBlog::DATE_FORMAT), PDO::PARAM_STR);
-        $stmt->bindParam(":updated_at", $blog->getUpdatedAt()->format(PublishedBlog::DATE_FORMAT), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $blog->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":updated_at", $blog->getUpdatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
 
         $new_tag_names = $blog->getTags();
