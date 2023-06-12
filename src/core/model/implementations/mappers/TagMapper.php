@@ -18,14 +18,13 @@ class TagMapper extends DataMapper
 
     public function tagFromData(array $tag_data)
     {
-        $tag = $this->tag_factory->makeTag();
+        $tag = $this->tag_factory->makeTag($tag_data["name"]);
         $tag->setId($tag_data["tag_id"]);
-        $tag->setName($tag_data["name"]);
 
         $tag->setTotalTaggedWith($tag_data["total_tagged_with"]);
         $tag->setTaggedWithToday($tag_data["tagged_with_today"]);
-        $tag->setCreatedAt(DateTimeImmutable::createFromFormat(Tag::DATE_FORMAT, $tag_data["created_at"]));
-        $tag->setUpdatedAt(DateTimeImmutable::createFromFormat(Tag::DATE_FORMAT, $tag_data["updated_at"]));
+        $tag->setCreatedAt(new DateTimeImmutable(date(Tag::DATE_FORMAT, $tag_data["created_at"])));
+        $tag->setUpdatedAt(new DateTimeImmutable(date(Tag::DATE_FORMAT, $tag_data["updated_at"])));
 
         return $tag;
     }
@@ -71,8 +70,8 @@ class TagMapper extends DataMapper
         $stmt->bindParam(":name", $tag->getName(), PDO::PARAM_STR);
         $stmt->bindParam(":tagged_today", $tag->getTaggedWithToday(), PDO::PARAM_INT);
         $stmt->bindParam(":tagged_total", $tag->getTotalTaggedWith(), PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $tag->getCreatedAt()->format(Tag::DATE_FORMAT), PDO::PARAM_STR);
-        $stmt->bindParam(":updated_at", $tag->getUpdatedAt()->format(Tag::DATE_FORMAT), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $tag->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":updated_at", $tag->getUpdatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
     }
 
@@ -96,6 +95,7 @@ class TagMapper extends DataMapper
         return $tag;
     }
 
+    // TODO: consider adding an extact_match param
     public function fetchByName(String $tag_name): ?Tag
     {
         $tag = NULL;
@@ -118,6 +118,7 @@ class TagMapper extends DataMapper
 
     /**
      * Returns the most used tag(s) all time
+     * TODO: add sort order params to sort by most/least tagged with
      */
     public function fetchByTotalTaggedWith(int $amount = 1, int $offset = 0)
     {
@@ -148,6 +149,7 @@ class TagMapper extends DataMapper
 
     /**
      * Returns the most used tag(s) today
+     * TODO: add sort order param
      */
     public function fetchByTaggedWithToday(int $amount = 1, int $offset = 0)
     {
@@ -248,8 +250,8 @@ class TagMapper extends DataMapper
         $stmt->bindParam(":name", $tag->getName(), PDO::PARAM_STR);
         $stmt->bindParam(":tagged_today", $tag->getTaggedWithToday(), PDO::PARAM_INT);
         $stmt->bindParam(":tagged_total", $tag->getTotalTaggedWith(), PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $tag->getCreatedAt()->format(Tag::DATE_FORMAT), PDO::PARAM_STR);
-        $stmt->bindParam(":updated_at", $tag->getUpdatedAt()->format(Tag::DATE_FORMAT), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $tag->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":updated_at", $tag->getUpdatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
     }
 
