@@ -7,7 +7,7 @@ require_once realpath(dirname(__FILE__) . '../../../../../../../') . '/vendor/au
 
 class BlogDraft extends Entity
 {
-    public const DATE_FORMAT = "Y-m-d";
+    public const DATE_FORMAT = "Y-m-d H:i:s";
     public const MAX_TAGS = 3;
     public const MAX_NAME_LEN = 16;
     public const MAX_TITLE_LEN = 100;
@@ -28,8 +28,6 @@ class BlogDraft extends Entity
     private array $tags;
     private DateTimeImmutable $created_at, $updated_at;
 
-    
-
     public function __construct(HTMLPurifier $html_purifier, int $drafter_id, String $body_uri, String $name, ?String $draft_id = NULL)
     {
         $this->id = $draft_id;
@@ -43,8 +41,8 @@ class BlogDraft extends Entity
 
         $this->tags = [];
 
-        $this->setCreatedAt();
-        $this->setUpdatedAt();
+        $this->setCreatedAt(NULL);
+        $this->setUpdatedAt(NULL);
     }
 
     public function getDrafterId(): int
@@ -119,7 +117,8 @@ class BlogDraft extends Entity
         return $this->updated_at;
     }
 
-    public function setId(?int $draft_id) {
+    public function setId(?int $draft_id)
+    {
         $this->id = $draft_id;
     }
 
@@ -166,7 +165,7 @@ class BlogDraft extends Entity
         $this->published_blog_id = $published_blog_id;
     }
 
-    public function setCreatedAt(?DateTimeImmutable $date = NULL)
+    public function setCreatedAt(?DateTimeImmutable $date)
     {
         if ($date) {
             $this->created_at = $date;
@@ -175,7 +174,7 @@ class BlogDraft extends Entity
         }
     }
 
-    public function setUpdatedAt(?DateTimeImmutable $date = NULL)
+    public function setUpdatedAt(?DateTimeImmutable $date)
     {
         if ($date) {
             $this->updated_at = $date;
