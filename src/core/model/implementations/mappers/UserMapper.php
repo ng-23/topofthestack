@@ -20,35 +20,43 @@ class UserMapper extends DataMapper
     {
         $user = $this->user_factory->makeUser($user_data["email"]);
 
-        $activated = false;
-        if ($user_data["activated"] == 1) {
-            $activated = true;
-        }
-
         $user->setId($user_data["user_id"]);
         $user->setPasswordHash($user_data["password_hash"]);
-        $user->setActivationStatus($activated);
+        $user->setActivationStatus((bool)$user_data["activated"]);
         $user->setDisplayName($user_data["display_name"]);
         $user->setBio($user_data["bio"]);
         $user->setCountryCode($user_data["country_code"]);
         $user->setPfpUri($user_data["pfp_uri"]);
 
-        $user->setCreatedAt(DateTimeImmutable::createFromFormat(User::DATE_FORMAT, $user_data["created_at"]));
-        $user->setOnlineAt(DateTimeImmutable::createFromFormat(User::DATE_FORMAT, $user_data["online_at"]));
+        $user->setCreatedAt(new DateTimeImmutable(date(Tag::DATE_FORMAT, $user_data["created_at"])));
+        $user->setOnlineAt(new DateTimeImmutable(date(Tag::DATE_FORMAT, $user_data["online_at"])));
+
+        // this can be redundant but helps make the usersFromData method work well
+        // also helps hide the fact that just selecting from users table does not include settings...
+        $user_data = $this->pushSettings($user_data);
 
         $settings = $user_data["settings"][0];
         foreach (array_keys($settings) as $setting) {
-            $enabled = true;
-            if ($settings[$setting] == 0) {
-                $enabled = false;
-            }
+            $enabled = (bool)$settings[$setting];
             $user->setSetting($setting, $enabled);
         }
 
         return $user;
     }
 
-    private function pushSettings(array $user_data)
+    private function usersFromData(array $users_data): array
+    {
+        $users = [];
+
+        foreach ($users_data as $user_data) {
+            $user = $this->userFromData($user_data);
+            array_push($users, $user);
+        }
+
+        return $users;
+    }
+
+    private function pushSettings(array $user_data): array
     {
         $query = "SELECT `notify_follow_req`, `notify_blog_comment`, `notify_blog_from_following`, 
                 `public_profile` FROM `user_settings` WHERE `user_id` = ?";
@@ -58,7 +66,7 @@ class UserMapper extends DataMapper
 
         $settings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $user_data["settings"] - $settings;
+        $user_data["settings"] = $settings;
 
         return $user_data;
     }
@@ -87,6 +95,7 @@ class UserMapper extends DataMapper
 
     public function save(User $user)
     {
+        // TODO: have to check if Id is null first, then pass to method if it isn't; do in other mappers where needed
         if ($this->existsById($user->getId())) {
             // TODO: custom exceptions; DuplicateKey exception
             throw new Exception();
@@ -105,13 +114,15 @@ class UserMapper extends DataMapper
         $stmt->bindParam(":disp_name", $user->getDisplayName(), PDO::PARAM_STR);
         $stmt->bindParam(":passwd_hash", $user->getPasswordHash(), PDO::PARAM_STR);
         $stmt->bindParam(":email", $user->getEmail(), PDO::PARAM_STR);
-        $stmt->bindParam(":activated", $user->getActivationStatus(), PDO::PARAM_BOOL);
+        $stmt->bindParam(":activated", (int)$user->getActivationStatus(), PDO::PARAM_BOOL);
         $stmt->bindParam(":bio", $user->getBio(), PDO::PARAM_STR);
         $stmt->bindParam(":cc", $user->getCountryCode(), PDO::PARAM_STR);
         $stmt->bindParam(":pfp_uri", $user->getPfpUri(), PDO::PARAM_STR);
-        $stmt->bindParam(":created_at", $user->getCreatedAt()->format(User::DATE_FORMAT), PDO::PARAM_STR);
-        $stmt->bindParam(":online_at", $user->getOnlineAt()->format(User::DATE_FORMAT), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $user->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":online_at", $user->getOnlineAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
+
+        // do not need to insert anything in the settings table - that is done automatically by a trigger
     }
 
     public function fetchById(int $user_id): ?User
@@ -123,13 +134,11 @@ class UserMapper extends DataMapper
                 WHERE `user_id` = ?";
 
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(1, $user_id);
+        $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
         $stmt->execute();
 
         if ($stmt->rowCount() == 1) {
             $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            $user_data = $this->pushSettings($user_data);
 
             $user = $this->userFromData($user_data);
         }
@@ -151,8 +160,6 @@ class UserMapper extends DataMapper
 
         if ($stmt->rowCount() == 1) {
             $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            $user_data = $this->pushSettings($user_data);
 
             $user = $this->userFromData($user_data);
         }
@@ -179,11 +186,7 @@ class UserMapper extends DataMapper
         if ($stmt->rowCount() >= 1) {
             $users_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            foreach ($users_data as $user_data) {
-                $user_data = $this->pushSettings($user_data);
-                $user = $this->userFromData($user_data);
-                array_push($users, $user);
-            }
+            $users = $this->usersFromData($users_data);
         }
 
         return $users;
@@ -208,11 +211,7 @@ class UserMapper extends DataMapper
         if ($stmt->rowCount() >= 1) {
             $users_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            foreach ($users_data as $user_data) {
-                $user_data = $this->pushSettings($user_data);
-                $user = $this->userFromData($user_data);
-                array_push($users, $user);
-            }
+            $users = $this->usersFromData($users_data);
         }
 
         return $users;
@@ -242,15 +241,28 @@ class UserMapper extends DataMapper
         $stmt->bindParam(":disp_name", $user->getDisplayName(), PDO::PARAM_STR);
         $stmt->bindParam(":passwd_hash", $user->getPasswordHash(), PDO::PARAM_STR);
         $stmt->bindParam(":email", $user->getEmail(), PDO::PARAM_STR);
-        $stmt->bindParam(":activated", $user->getActivationStatus(), PDO::PARAM_BOOL);
+        $stmt->bindParam(":activated", (int)$user->getActivationStatus(), PDO::PARAM_BOOL);
         $stmt->bindParam(":bio", $user->getBio(), PDO::PARAM_STR);
         $stmt->bindParam(":cc", $user->getCountryCode(), PDO::PARAM_STR);
         $stmt->bindParam(":pfp_uri", $user->getPfpUri(), PDO::PARAM_STR);
-        $stmt->bindParam(":created_at", $user->getCreatedAt()->format(User::DATE_FORMAT), PDO::PARAM_STR);
-        $stmt->bindParam(":online_at", $user->getOnlineAt()->format(User::DATE_FORMAT), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $user->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":online_at", $user->getOnlineAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->execute();
+
+        $query = "UPDATE `user_settings` SET `notify_follow_req` = :notify_follow_request, `notify_blog_comment` = :notify_blog_comment, 
+                `notify_blog_from_following` = :notify_blog_from_following, `public_profile` = :public_profile
+                WHERE `user_id` = :user_id";
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(":user_id", $user->getId(), PDO::PARAM_INT);
+        $settings = $user->getSettings();
+        foreach (array_keys($settings) as $setting) {
+            $enabled = (int)$settings[$setting];
+            $stmt->bindParam(":{$setting}", $enabled, PDO::PARAM_INT);
+        }
         $stmt->execute();
     }
 
+    // note about delete methods: do not need to delete from settings table as a trigger takes care of that...
     public function deleteById(int $user_id)
     {
         // should we check that user exists with that ID?
@@ -266,8 +278,6 @@ class UserMapper extends DataMapper
 
         if ($stmt->rowCount() == 1) {
             $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            $user_data = $this->pushSettings($user_data);
 
             $user = $this->userFromData($user_data);
         }
@@ -287,8 +297,6 @@ class UserMapper extends DataMapper
 
         if ($stmt->rowCount() >= 1) {
             $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            $user_data = $this->pushSettings($user_data);
 
             $user = $this->userFromData($user_data);
         }
