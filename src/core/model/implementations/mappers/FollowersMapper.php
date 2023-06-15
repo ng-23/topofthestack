@@ -36,7 +36,19 @@ class FollowersMapper extends DataMapper
         return $followers;
     }
 
-    // TODO: consider adding existsBy* methods
+    public function isFollowing(int $follower_id, int $followee_id): bool
+    {
+        $following = false;
+
+        if ($follower_id != $followee_id) {
+            $follower = $this->fetchByFolloweeAndFollowerId($followee_id, $follower_id);
+            if ($follower) {
+                $following = true;
+            }
+        }
+
+        return $following;
+    }
 
     public function save(Follower $follower)
     {
