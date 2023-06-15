@@ -6,10 +6,9 @@ require_once realpath(dirname(__FILE__) . '../../../') . '/abstractions/mappers/
 require_once realpath(dirname(__FILE__) . '../../') . '/entities/drafts/BlogDraft.php';
 require_once realpath(dirname(__FILE__) . '../../') . '/entities/drafts/BlogDraftFactory.php';
 
-
 class DraftMapper extends DataMapper
 {
-    public const BODY_CONTENTS_DIR = "../../../resources/drafts";
+    public const BODY_CONTENTS_DIR = "resources/drafts/";
 
     private TagMapper $tag_mapper;
     private BlogDraftFactory $draft_factory;
@@ -105,6 +104,26 @@ class DraftMapper extends DataMapper
         return $exists;
     }
 
+    private function validateBodyUri(String $uri): bool
+    {
+        $is_valid = false;
+
+        // uri should be of pattern base_dir/file_name
+        if (str_starts_with($uri, self::BODY_CONTENTS_DIR)) {
+            $file_name = substr($uri, strlen(self::BODY_CONTENTS_DIR));
+            // can't exceed maximum uri length
+            if (strlen(self::BODY_CONTENTS_DIR) + strlen($file_name) <= PublishedBlog::MAX_URI_LEN) {
+                // file_name can't contain certain characters
+                $has_valid_chars = preg_match(BlogMapper::BODY_FILE_NAME_REGEX, $file_name);
+                if ($has_valid_chars) {
+                    $is_valid = true;
+                }
+            }
+        }
+
+        return $is_valid;
+    }
+
     private function tagDraft(int $draft_id, String $tag_name)
     {
         $query = "INSERT INTO `tagged_drafts` (`draft_id`, `tag_name`) VALUES (:draft_id, :tag_name)";
@@ -128,18 +147,25 @@ class DraftMapper extends DataMapper
 
     private function writeBodyContents(BlogDraft $draft)
     {
-        $body_contents_file = fopen(self::BODY_CONTENTS_DIR . "/{$draft->getBodyUri()}", "w");
+        // this should probably validate the body uri instead of just assuming it's ok
+        $body_contents_file = fopen($_SERVER["DOCUMENT_ROOT"] . "/" . $draft->getBodyUri(), "w");
         fwrite($body_contents_file, $draft->getBodyContents());
         fclose($body_contents_file);
     }
 
     public function save(BlogDraft $draft)
     {
-        if ($this->existsById($draft->getId())) {
-            throw new Exception();
+        $draft_id_param_type = PDO::PARAM_NULL;
+        if ($draft->getId()) {
+            $this->existsById($draft->getId()) ? throw new Exception() : '';
+            $draft_id_param_type = PDO::PARAM_INT;
         }
 
         if ($this->existsByDrafterAndDraftName($draft->getDrafterId(), $draft->getName())) {
+            throw new Exception();
+        }
+
+        if (!$this->validateBodyUri($draft->getBodyUri())) {
             throw new Exception();
         }
 
@@ -162,7 +188,7 @@ class DraftMapper extends DataMapper
                 :drafter_id, :body_uri, :published_blog_id, :name, :title,
                 :created_at, :updated_at)";
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":draft_id", $draft->getId(), PDO::PARAM_INT);
+        $stmt->bindParam(":draft_id", $draft->getId(), $draft_id_param_type);
         $stmt->bindParam(":drafter_id", $draft->getDrafterId(), PDO::PARAM_INT);
         $stmt->bindParam(":body_uri", $draft->getBodyUri(), PDO::PARAM_STR);
         $stmt->bindParam(":published_blog_id", $draft->getPublishedBlogId(), PDO::PARAM_INT);
@@ -221,7 +247,7 @@ class DraftMapper extends DataMapper
         $stmt->execute();
 
         if ($stmt->rowCount() >= 1) {
-            $drafts_data = $stmt->fetch(PDO::FETCH_ASSOC);
+            $drafts_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $drafts = $this->draftsFromData($drafts_data);
         }
@@ -251,7 +277,7 @@ class DraftMapper extends DataMapper
         $stmt->execute();
 
         if ($stmt->rowCount() >= 1) {
-            $drafts_data = $stmt->fetch(PDO::FETCH_ASSOC);
+            $drafts_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $drafts = $this->draftsFromData($drafts_data);
         }
@@ -262,6 +288,11 @@ class DraftMapper extends DataMapper
     {
         if ($amount < 0 || $offset < 0) {
             throw new Exception();
+        }
+
+        $is_valid_name = preg_match(BlogDraft::NAME_REGEX, $draft_name);
+        if (!$is_valid_name) {
+            return [];
         }
 
         $drafts = [];
@@ -286,51 +317,10 @@ class DraftMapper extends DataMapper
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
 
-        if ($stmt->rowCount() >= 1) {
-            $drafts_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($stmt->rowCount() == 1) {
+            $drafts_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $drafts = $this->draftsFromData($drafts_data);
-        }
-
-        return $drafts;
-    }
-
-    /**
-     * Returns the draft(s) associated with a user with title
-     * TODO: consider deprecating this...when would it really be useful?
-     */
-    public function fetchByDrafterAndTitle(int $drafter_id, String $title, int $amount = 1, int $offset = 0, bool $exact_match = false)
-    {
-        if ($amount < 0 || $offset < 0) {
-            throw new Exception();
-        }
-
-        $drafts = [];
-
-        $query = "SELECT `draft_id`, `drafter_id`, `body_uri`, `published_blog_id`, 
-                `name`, `title`, `created_at`, `updated_at` FROM `blog_drafts`
-                WHERE `drafter_id` = :drafter_id AND `title`";
-
-        if ($exact_match) {
-            $query = $query . " = :title";
-        } else {
-            $query = $query . " REGEXP :title";
-            $title = "(" . $title . ")"; // regex pattern ($title) for inclusive matches
-        }
-
-        $query = $query . " LIMIT :lim OFFSET :off";
-
-        $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":drafter_id", $drafter_id, PDO::PARAM_INT);
-        $stmt->bindParam(":title", $title, PDO::PARAM_STR);
-        $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
-        $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
-        $stmt->execute();
-
-        if ($stmt->rowCount() >= 1) {
-            $drafts_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $drafts = $this->draftFromData($drafts_data);
         }
 
         return $drafts;
@@ -394,8 +384,10 @@ class DraftMapper extends DataMapper
 
     public function update(BlogDraft $draft, bool $change_name = false)
     {
-        if (!$this->existsById($draft->getId())) {
-            throw new Exception();
+        $draft_id_param_type = PDO::PARAM_NULL;
+        if ($draft->getId()) {
+            $this->existsById($draft->getId()) ? throw new Exception() : '';
+            $draft_id_param_type = PDO::PARAM_INT;
         }
 
         if ($change_name) {
@@ -403,6 +395,8 @@ class DraftMapper extends DataMapper
         } else {
             !$this->existsByDrafterAndDraftName($draft->getDrafterId(), $draft->getName()) ? throw new Exception() : "";
         }
+
+        // do we need to check if body uri is valid here? i don't think so...
 
         if (!$this->existsByBodyUri($draft->getBodyUri())) {
             throw new Exception();
@@ -418,7 +412,7 @@ class DraftMapper extends DataMapper
                 `created_at` = :created_at, `updated_at` = :updated_at WHERE `draft_id` = :draft_id";
 
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":draft_id", $draft->getId(), PDO::PARAM_INT);
+        $stmt->bindParam(":draft_id", $draft->getId(), $draft_id_param_type);
         $stmt->bindParam(":pub_blog_id", $draft->getPublishedBlogId(), PDO::PARAM_INT);
         $stmt->bindParam(":name", $draft->getName(), PDO::PARAM_STR);
         $stmt->bindParam(":title", $draft->getTitle(), PDO::PARAM_STR);
@@ -462,7 +456,7 @@ class DraftMapper extends DataMapper
         $stmt->bindParam(":draft_id", $draft_id, PDO::PARAM_INT);
         $stmt->execute();
 
-        if ($stmt->rowCount() >= 1) {
+        if ($stmt->rowCount() == 1) {
             $draft_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $draft = $this->draftFromData($draft_data);
