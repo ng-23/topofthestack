@@ -8,23 +8,22 @@ require_once realpath(dirname(__FILE__) . '../../../../../../../') . '/vendor/au
 class BlogDraft extends Entity
 {
     public const DATE_FORMAT = "Y-m-d H:i:s";
-    public const MAX_TAGS = 3;
+    public const MIN_NAME_LEN = 1;
     public const MAX_NAME_LEN = 16;
-    public const MAX_TITLE_LEN = 100;
-    public const MAX_URI_LEN = 255;
+    public const NAME_REGEX = "@^[a-zA-Z#][a-zA-Z0-9_]{" . self::MIN_NAME_LEN - 1 . "," . self::MAX_NAME_LEN - 1 . "}$@";
 
     private HTMLPurifier $html_purifier;
     private int $drafter_id;
     private ?int $published_blog_id;
     private String $body_uri, $body_contents;
     /**
-     * this is basically like a file name for the draft
+     * this is basically like a file name for the draft client side
      * for published blogs, this is equivalent to the title
      * which is why it isn't a separate field in that class
      * like a title, draft names must be unique (per user)
      */
     private String $name;
-    private ?String $title; // this can be null until the user devices to push the draft to a published blog
+    private ?String $title; // this can be null until the user decides to push the draft to a published blog
     private array $tags;
     private DateTimeImmutable $created_at, $updated_at;
 
@@ -82,7 +81,7 @@ class BlogDraft extends Entity
 
     public function addTag(String $tag_name)
     {
-        if (sizeof($this->tags) == self::MAX_TAGS) {
+        if (sizeof($this->tags) == PublishedBlog::MAX_TAGS) {
             throw new Exception();
         }
 
@@ -125,7 +124,7 @@ class BlogDraft extends Entity
     public function setBodyUri(String $uri)
     {
         $uri_len = strlen($uri);
-        if ($uri_len == 0 or $uri_len > self::MAX_URI_LEN) {
+        if ($uri_len < PublishedBlog::MIN_URI_LEN or $uri_len > PublishedBlog::MAX_URI_LEN) {
             throw new Exception();
         }
 
@@ -140,18 +139,19 @@ class BlogDraft extends Entity
     public function setTitle(?String $title = NULL)
     {
         if ($title) {
-            $title_len = strlen($title);
-            if ($title_len == 0 or $title_len > self::MAX_TITLE_LEN) {
+            $is_valid = preg_match(PublishedBlog::TITLE_REGEX, $title);
+            if (!$is_valid) {
                 throw new Exception();
             }
         }
+
         $this->title = $title;
     }
 
     public function setName(String $name)
     {
-        $name_len = strlen($name);
-        if ($name_len == 0 || $name_len > self::MAX_NAME_LEN) {
+        $is_valid = preg_match(self::NAME_REGEX, $name);
+        if (!$is_valid) {
             throw new Exception();
         }
         $this->name = $name;
