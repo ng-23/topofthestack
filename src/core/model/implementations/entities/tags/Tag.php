@@ -8,8 +8,8 @@ class Tag extends Entity
 {
     public const DATE_FORMAT = "Y-m-d H:i:s";
     public const MIN_NAME_LEN = 3;
-    public const MAX_NAME_LEN = 15;
-    public const VALID_NAME_REGEX = "#^[0-9a-zA-Z_.-]{" . self::MIN_NAME_LEN . "," . self::MAX_NAME_LEN . "}$#";
+    public const MAX_NAME_LEN = 24;
+    public const NAME_REGEX = "#^[a-zA-Z_#$@][a-zA-Z0-9_-]{" . self::MIN_NAME_LEN - 1 . "," . self::MAX_NAME_LEN - 1 . "}$#";
 
     private String $name;
     private int $total_tagged_with;
@@ -57,7 +57,7 @@ class Tag extends Entity
 
     public function setName(String $name)
     {
-        $is_valid = preg_match(self::VALID_NAME_REGEX, $name);
+        $is_valid = preg_match(self::NAME_REGEX, $name);
         if (!$is_valid) {
             throw new Exception();
         }
