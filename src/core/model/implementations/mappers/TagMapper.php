@@ -8,6 +8,10 @@ require_once realpath(dirname(__FILE__) . '../../') . '/entities/tags/TagFactory
 
 class TagMapper extends DataMapper
 {
+    public const SORT_NO_ORDER = 0;
+    public const SORT_ASC_ORDER = 1;
+    public const SORT_DESC_ORDER = 2;
+
     public TagFactory $tag_factory;
 
     public function __construct(PDO $db_connection, TagFactory $tag_factory)
@@ -16,7 +20,7 @@ class TagMapper extends DataMapper
         $this->tag_factory = $tag_factory;
     }
 
-    public function tagFromData(array $tag_data)
+    public function tagFromData(array $tag_data): Tag
     {
         $tag = $this->tag_factory->makeTag($tag_data["name"]);
         $tag->setId($tag_data["tag_id"]);
@@ -27,6 +31,39 @@ class TagMapper extends DataMapper
         $tag->setUpdatedAt(new DateTimeImmutable(date(Tag::DATE_FORMAT, $tag_data["updated_at"])));
 
         return $tag;
+    }
+
+    public function tagsFromData(array $tags_data): array
+    {
+        $tags = [];
+
+        foreach ($tags_data as $tag_data) {
+            $tag = $this->tagFromData($tag_data);
+            array_push($tags_data, $tag);
+        }
+
+        return $tags;
+    }
+
+    private function sortOrderToString(int $sort_order): ?String
+    {
+        $sort_order_str = "";
+
+        switch ($sort_order) {
+            case (self::SORT_ASC_ORDER):
+                $sort_order_str = "ASC";
+                break;
+            case (self::SORT_DESC_ORDER):
+                $sort_order_str = "DESC";
+                break;
+            case (self::SORT_NO_ORDER):
+                $sort_order_str = "";
+                break;
+            default:
+                throw new Exception();
+        }
+
+        return $sort_order_str;
     }
 
     public function existsById(int $tag_id)
@@ -53,11 +90,13 @@ class TagMapper extends DataMapper
 
     public function save(Tag $tag)
     {
-        if (!$this->existsById($tag->getId())) {
-            throw new Exception();
+        $tag_id_param_type = PDO::PARAM_NULL;
+        if ($tag->getId()) {
+            $this->existsById($tag->getId()) ? throw new Exception() : '';
+            $tag_id_param_type = PDO::PARAM_INT;
         }
 
-        if (!$this->existsByName($tag->getName())) {
+        if ($this->existsByName($tag->getName())) {
             throw new Exception();
         }
 
@@ -66,7 +105,7 @@ class TagMapper extends DataMapper
                             :tagged_total, :created_at, :updated_at)";
 
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":tag_id", $tag->getId(), PDO::PARAM_INT);
+        $stmt->bindParam(":tag_id", $tag->getId(), $tag_id_param_type);
         $stmt->bindParam(":name", $tag->getName(), PDO::PARAM_STR);
         $stmt->bindParam(":tagged_today", $tag->getTaggedWithToday(), PDO::PARAM_INT);
         $stmt->bindParam(":tagged_total", $tag->getTotalTaggedWith(), PDO::PARAM_INT);
@@ -100,27 +139,27 @@ class TagMapper extends DataMapper
     {
         $tag = NULL;
 
-        $query = "SELECT `tag_id`, `name`, `tagged_with_today`, 
+        // is doing checks like this before querying even worth it?
+        $valid_name = preg_match(Tag::NAME_REGEX, $tag_name);
+        if ($valid_name) {
+            $query = "SELECT `tag_id`, `name`, `tagged_with_today`, 
                 `total_tagged_with`, `created_at`, `updated_at` FROM `tags`
                 WHERE `name` = ?";
 
-        $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(1, $tag_name);
-        $stmt->execute();
+            $stmt = $this->db_connection->prepare($query);
+            $stmt->bindParam(1, $tag_name);
+            $stmt->execute();
 
-        if ($stmt->rowCount() == 1) {
-            $tag_data = $stmt->fetch(PDO::FETCH_ASSOC);
-            $tag = $this->tagFromData($tag_data);
+            if ($stmt->rowCount() == 1) {
+                $tag_data = $stmt->fetch(PDO::FETCH_ASSOC);
+                $tag = $this->tagFromData($tag_data);
+            }
         }
 
         return $tag;
     }
 
-    /**
-     * Returns the most used tag(s) all time
-     * TODO: add sort order params to sort by most/least tagged with
-     */
-    public function fetchByTotalTaggedWith(int $amount = 1, int $offset = 0)
+    public function fetchByTotalTaggedWith(int $amount = 1, int $offset = 0, int $sort_order = self::SORT_DESC_ORDER)
     {
         if ($amount < 0 || $offset < 0) {
             throw new Exception();
@@ -128,9 +167,11 @@ class TagMapper extends DataMapper
 
         $tags = [];
 
+        $sort_order_str = $this->sortOrderToString($sort_order);
+
         $query = "SELECT `tag_id`, `name`, `tagged_with_today`, 
                 `total_tagged_with`, `created_at`, `updated_at` FROM tags
-                ORDER BY `total_tagged_with` LIMIT :lim OFFSET :off";
+                ORDER BY `total_tagged_with` {$sort_order_str} LIMIT :lim OFFSET :off";
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
@@ -138,20 +179,14 @@ class TagMapper extends DataMapper
         $stmt->execute();
 
         if ($stmt->rowCount() >= 1) {
-            $tags_data = $stmt->fetch(PDO::FETCH_ASSOC);
-            foreach ($tags_data as $tag_data) {
-                $tag = $this->tagFromData($tag_data);
-                array_push($tags, $tag);
-            }
+            $tags_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $tags = $this->tagsFromData($tags_data);
         }
+
         return $tags;
     }
 
-    /**
-     * Returns the most used tag(s) today
-     * TODO: add sort order param
-     */
-    public function fetchByTaggedWithToday(int $amount = 1, int $offset = 0)
+    public function fetchByTaggedWithToday(int $amount = 1, int $offset = 0, int $sort_order = self::SORT_DESC_ORDER)
     {
         if ($amount < 0 || $offset < 0) {
             throw new Exception();
@@ -159,9 +194,11 @@ class TagMapper extends DataMapper
 
         $tags = [];
 
+        $sort_order_str = $this->sortOrderToString($sort_order);
+
         $query = "SELECT `tag_id`, `name`, `tagged_with_today`, 
                 `total_tagged_with`, `created_at`, `updated_at` FROM tags
-                ORDER BY `tagged_with_today` LIMIT :lim OFFSET :off";
+                ORDER BY `tagged_with_today` {$sort_order_str} LIMIT :lim OFFSET :off";
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
@@ -169,12 +206,10 @@ class TagMapper extends DataMapper
         $stmt->execute();
 
         if ($stmt->rowCount() >= 1) {
-            $tags_data = $stmt->fetch(PDO::FETCH_ASSOC);
-            foreach ($tags_data as $tag_data) {
-                $tag = $this->tagFromData($tag_data);
-                array_push($tags, $tag);
-            }
+            $tags_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $tags = $this->tagsFromData($tags_data);
         }
+
         return $tags;
     }
 
@@ -192,11 +227,9 @@ class TagMapper extends DataMapper
 
         if ($stmt->rowCount() >= 1) {
             $tags_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($tags_data as $tag_data) {
-                $tag = $this->tagFromData($tag_data);
-                array_push($tags, $tag);
-            }
+            $tags = $this->tagsFromData($tags_data);
         }
+
         return $tags;
     }
 
@@ -205,7 +238,7 @@ class TagMapper extends DataMapper
         $tags = [];
 
         $query = "SELECT `tag_id`, `name`, `tagged_with_today`, `total_tagged_with`, 
-                `created_at`, `updated_at` FROM tagged_drafts
+                `created_at`, `updated_at` FROM `tagged_drafts`
                 WHERE `draft_id` = ?";
 
         $stmt = $this->db_connection->prepare($query);
@@ -214,17 +247,15 @@ class TagMapper extends DataMapper
 
         if ($stmt->rowCount() >= 1) {
             $tags_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($tags_data as $tag_data) {
-                $tag = $this->tagFromData($tag_data);
-                array_push($tags, $tag);
-            }
+            $tags = $this->tagsFromData($tags_data);
         }
+        
         return $tags;
     }
 
     public function update(Tag $tag, bool $change_name = false)
     {
-        if (!$this->existsById($tag->getId())) {
+        if (!$tag->getId() or !$this->existsById($tag->getId())) {
             throw new Exception();
         }
 
@@ -236,11 +267,6 @@ class TagMapper extends DataMapper
             !$this->existsByName($tag->getName()) ? throw new Exception() : '';
         }
 
-        // this is a little awkward because now you have to set updated_at to correct date manually, it isn't automatic
-        // but it would also be awkward I suppose if the mapper silently used a different value for updated_at rather than the one set in the entity
-        // maybe just exclude the setter for updated_at in the entity? that also seems a little awkward though...
-        // if you exclude the setter but keep the field, it will just have a default value that will end up just being ignored in some cases
-        // maybe exclude it as a field altogether? but that won't work, because the web app needs to display that info sometimes...
         $query = "UPDATE `tags` SET `name` = :tag_name, `tagged_with_today` = :tagged_today,
                 `total_tagged_with` = :tagged_total, `created_at` = :created_at, `updated_at` = :updated_at 
                 WHERE `tag_id` = :tag_id";
@@ -266,7 +292,7 @@ class TagMapper extends DataMapper
         $stmt->bindParam(":tag_id", $tag_id, PDO::PARAM_INT);
         $stmt->execute();
 
-        if ($stmt->rowCount() >= 1) {
+        if ($stmt->rowCount() == 1) {
             $tag_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $tag = $this->tagFromData($tag_data);
@@ -286,7 +312,7 @@ class TagMapper extends DataMapper
         $stmt->bindParam(":tag_name", $tag_name, PDO::PARAM_STR);
         $stmt->execute();
 
-        if ($stmt->rowCount() >= 1) {
+        if ($stmt->rowCount() == 1) {
             $tag_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $tag = $this->tagFromData($tag_data);
