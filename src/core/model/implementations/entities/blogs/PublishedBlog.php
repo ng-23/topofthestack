@@ -9,18 +9,20 @@ class PublishedBlog extends Entity
 {
     public const DATE_FORMAT = "Y-m-d H:i:s";
     public const MAX_TAGS = 3;
+    public const MIN_URI_LEN = 5;
+    public const MAX_URI_LEN = 255;
+    public const MIN_TITLE_LEN = 10;
+    public const MAX_TITLE_LEN = 100;
+    public const TITLE_REGEX = "@^[a-zA-Z\"#][a-zA-Z0-9:,.!?$%#\" -]{" . self::MIN_TITLE_LEN - 1 . "," . self::MAX_TITLE_LEN - 1 . "}$@";
 
     private HTMLPurifier $html_purifier;
     private int $author_id;
     private String $body_uri, $body_contents;
     private String $title;
-    private array $tags; // consider making this an array of actual Tag objects...
+    private array $tags;
     private int $total_comments, $total_likes, $total_views;
     private int $comments_today, $likes_today, $views_today;
     private DateTimeImmutable $created_at, $updated_at;
-
-    private const MAX_URI_LEN = 255;
-    private const MAX_TITLE_LEN = 100;
 
     public function __construct(HTMLPurifier $html_purifier, int $author_id, String $body_uri, String $title, ?int $blog_id = NULL)
     {
@@ -125,7 +127,7 @@ class PublishedBlog extends Entity
     public function setBodyUri(String $uri)
     {
         $uri_len = strlen($uri);
-        if ($uri_len == 0 or $uri_len > self::MAX_URI_LEN) {
+        if ($uri_len < self::MIN_URI_LEN or $uri_len > self::MAX_URI_LEN) {
             throw new Exception();
         }
 
@@ -149,8 +151,8 @@ class PublishedBlog extends Entity
 
     public function setTitle(String $title)
     {
-        $title_len = strlen($title);
-        if ($title_len == 0 or $title_len > self::MAX_TITLE_LEN) {
+        $is_valid = preg_match(self::TITLE_REGEX, $title);
+        if (!$is_valid) {
             throw new Exception();
         }
         $this->title = $title;
@@ -162,7 +164,7 @@ class PublishedBlog extends Entity
             throw new Exception();
         }
 
-        $is_valid = preg_match(Tag::VALID_NAME_REGEX, $tag_name);
+        $is_valid = preg_match(Tag::NAME_REGEX, $tag_name);
         if (!$is_valid) {
             throw new Exception();
         }
