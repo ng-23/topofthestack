@@ -15,7 +15,8 @@ class BlogMapper extends DataMapper
     public const SORT_ASC_ORDER = 1;
     public const SORT_DESC_ORDER = 2;
     public const SORT_NO_ORDER = 3;
-    public const BODY_CONTENTS_DIR = "../../../resources/blogs";
+    public const BODY_CONTENTS_DIR = "resources/blogs/";
+    public const BODY_FILE_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9_]*$#";
 
     private PublishedBlogFactory $blog_factory;
     private TagMapper $tag_mapper;
@@ -73,6 +74,26 @@ class BlogMapper extends DataMapper
         $blog_data["tags"] = $tags;
 
         return $blog_data;
+    }
+
+    private function validateBodyUri(String $uri): bool
+    {
+        $is_valid = false;
+
+        // uri should be of pattern base_dir/file_name
+        if (str_starts_with($uri, self::BODY_CONTENTS_DIR)) {
+            $file_name = substr($uri, strlen(self::BODY_CONTENTS_DIR));
+            // can't exceed maximum uri length
+            if (strlen(self::BODY_CONTENTS_DIR) + strlen($file_name) <= PublishedBlog::MAX_URI_LEN) {
+                // file_name can't contain certain characters
+                $has_valid_chars = preg_match(self::BODY_FILE_NAME_REGEX, $file_name);
+                if ($has_valid_chars) {
+                    $is_valid = true;
+                }
+            }
+        }
+
+        return $is_valid;
     }
 
     public function existsById(int $blog_id): bool
@@ -170,6 +191,7 @@ class BlogMapper extends DataMapper
          * of course, they could just type 1 character and then it'd be accepted
          * maybe check the length of the string?
          * but even that isn't perfect, since the structural parts of the HTML (like <tag></>) will add length but not content
+         * unless content is wrapped in paragraph tags or something, then you count the number of those?
          */
         if (strlen($blog->getBodyContents()) == 0) {
             throw new Exception();
@@ -182,6 +204,10 @@ class BlogMapper extends DataMapper
         }
 
         if ($this->existsByAuthorAndTitle($blog->getAuthorId(), $blog->getTitle())) {
+            throw new Exception();
+        }
+
+        if (!$this->validateBodyUri($blog->getBodyUri())) {
             throw new Exception();
         }
 
@@ -594,7 +620,7 @@ class BlogMapper extends DataMapper
         return $blogs;
     }
 
-    public function fetchByCreatedBetween(DateTimeImmutable $date1, DateTimeImmutable $date2, int $amount = 1, int $offset = 0)
+    public function fetchByCreatedBetween(DateTimeImmutable $date1, DateTimeImmutable $date2, int $amount = 1, int $offset = 0): array
     {
         if ($amount < 0 || $offset < 0) {
             throw new Exception();
@@ -715,7 +741,7 @@ class BlogMapper extends DataMapper
         return $blog;
     }
 
-    public function deleteByAuthorId(int $author_id)
+    public function deleteByAuthorId(int $author_id): array
     {
         $blogs = [];
 
