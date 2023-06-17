@@ -118,11 +118,10 @@ class BlogMapper extends DataMapper
         return $exists;
     }
 
-    public function existsByBodyUri(String $body_uri): bool
+    private function bodyUriExists(String $body_uri): bool
     {
         $exists = false;
 
-        // TODO: consider having a private fetchByBodyUri method that this method wraps the result of like other existsBy* methods
         $query = "SELECT `blog_id` FROM `published_blogs` WHERE `body_uri` = ?";
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(1, $body_uri, PDO::PARAM_STR);
@@ -212,7 +211,7 @@ class BlogMapper extends DataMapper
             throw new Exception();
         }
 
-        if ($this->existsByBodyUri($blog->getBodyUri())) {
+        if ($this->bodyUriExists($blog->getBodyUri())) {
             throw new Exception();
         }
 
@@ -666,7 +665,7 @@ class BlogMapper extends DataMapper
             !$this->existsByAuthorAndTitle($blog->getAuthorId(), $blog->getTitle()) ? throw new Exception() : "";
         }
 
-        if (!$this->existsByBodyUri($blog->getBodyUri())) {
+        if (!$this->bodyUriExists($blog->getBodyUri())) {
             throw new Exception();
         }
 
