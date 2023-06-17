@@ -157,7 +157,8 @@ class BlogMapper extends DataMapper
 
     private function writeBodyContents(PublishedBlog $blog)
     {
-        $body_contents_file = fopen(self::BODY_CONTENTS_DIR . "/{$blog->getBodyUri()}", "w");
+        $body_uri = $blog->getBodyUri();
+        $body_contents_file = fopen($_SERVER["DOCUMENT_ROOT"] . "/{$body_uri}", "w");
         fwrite($body_contents_file, $blog->getBodyContents());
         fclose($body_contents_file);
     }
