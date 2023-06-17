@@ -1,19 +1,23 @@
 <?php
 
-declare(strict_types = 1);
+declare(strict_types=1);
 
 require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entities/Entity.php';
 require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/username_generator.php';
 require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/Jwt.php';
+require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/isimage.php';
 
 class User extends Entity
 {
     public const DATE_FORMAT = "Y-m-d H:i:s";
     public const MIN_DISPLAY_NAME_LEN = 3;
-    public const MAX_DISPLAY_NAME_LEN = 32;
-    public const VALID_DISPLAY_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9._-]*$#";
-    public const MAX_BIO_LEN = 175;
+    public const MAX_DISPLAY_NAME_LEN = 24;
+    public const DISPLAY_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9._-]{" . self::MIN_DISPLAY_NAME_LEN - 1 . "," . self::MAX_DISPLAY_NAME_LEN - 1 . "}$#";
+    public const MAX_BIO_LEN = 125;
     public const COUNTRY_CODE_LEN = 2;
+    public const MIN_PFP_URI_LEN = 5;
+    public const MAX_PFP_URI_LEN = 255;
+    public const BYTES_IN_MB = 1000000;
 
     private String $display_name;
     private String $password_hash;
@@ -22,6 +26,7 @@ class User extends Entity
     private ?String $bio;
     private ?String $country_code;
     private String $pfp_uri;
+    private String $pfp_img_data;
     private DateTimeImmutable $created_at, $online_at;
 
     private bool $notify_follow_request, $notify_blog_comment, $notify_blog_from_following, $public_profile;
@@ -79,6 +84,11 @@ class User extends Entity
         return $this->pfp_uri;
     }
 
+    public function getPfpImageData(): String
+    {
+        return $this->pfp_img_data;
+    }
+
     public function getCreatedAt(): DateTimeImmutable
     {
         return $this->created_at;
@@ -118,12 +128,7 @@ class User extends Entity
     public function setDisplayName(?String $display_name)
     {
         if ($display_name) {
-            $display_name_len = strlen($display_name);
-            if ($display_name_len < self::MIN_DISPLAY_NAME_LEN or $display_name_len > self::MAX_DISPLAY_NAME_LEN) {
-                throw new LengthException();
-            }
-
-            $is_valid = preg_match(self::VALID_DISPLAY_NAME_REGEX, $display_name);
+            $is_valid = preg_match(self::DISPLAY_NAME_REGEX, $display_name);
             if (!$is_valid) {
                 throw new Exception();
             }
@@ -169,16 +174,40 @@ class User extends Entity
         $this->country_code = $country_code;
     }
 
-    public function setPfpUri(?String $path)
+    public function setPfpUri(?String $uri)
     {
-        if ($path) {
-            $this->pfp_uri = $path;
+        if ($uri) {
+            $uri_len = strlen($uri);
+            if ($uri_len < self::MIN_PFP_URI_LEN or $uri_len > self::MAX_PFP_URI_LEN) {
+                throw new Exception();
+            }
+            $this->pfp_uri = $uri;
         } else {
             // choose 1 of 4 random default pfps
             $rand_int = random_int(1, 4);
+
             $pfp = "pfp_default0{$rand_int}.png";
-            $this->pfp_uri = realpath(dirname(__FILE__) . '../../../../') . "/resources/images/{$pfp}";
+
+            $this->pfp_uri = UserMapper::PFP_DIR . "/{$pfp}";
+
+            $this->setPfpImageData(file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$this->pfp_uri}"));
         }
+    }
+
+    public function setPfpImageData(String $image_data)
+    {
+
+
+        $size_in_bytes = strlen($image_data);
+        if ($size_in_bytes < UserMapper::PFP_MIN_FILE_SIZE_B or $size_in_bytes > UserMapper::PFP_MAX_FILE_SIZE_MB * self::BYTES_IN_MB) {
+            throw new Exception();
+        }
+
+        if (!is_png($image_data) or !is_jpg($image_data)) {
+            throw new Exception();
+        }
+
+        $this->pfp_img_data = $image_data;
     }
 
     public function setCreatedAt(?DateTimeImmutable $date)
