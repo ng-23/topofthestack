@@ -9,7 +9,8 @@ function is_jpeg(String $image_data): bool
     return (bin2hex($image_data[0]) == 'ff' and bin2hex($image_data[1]) == 'd8');
 }
 
-function is_jpg(String $image_data): bool {
+function is_jpg(String $image_data): bool
+{
     return is_jpeg($image_data);
 }
 
