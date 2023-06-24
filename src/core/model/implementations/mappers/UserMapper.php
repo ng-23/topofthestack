@@ -8,6 +8,11 @@ require_once realpath(dirname(__FILE__) . '../../') . '/entities/users/UserFacto
 
 class UserMapper extends DataMapper
 {
+    public const PFP_FILE_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9_]*$#";
+    public const PFP_DIR = "resources/images";
+    public const PFP_MIN_FILE_SIZE_B = 12; // see https://www.php.net/manual/en/function.exif-imagetype.php#79283
+    public const PFP_MAX_FILE_SIZE_MB = 3;
+
     private UserFactory $user_factory;
 
     public function __construct(PDO $db_connection, UserFactory $user_factory)
@@ -71,6 +76,73 @@ class UserMapper extends DataMapper
         return $user_data;
     }
 
+    private function validatePfpUri(String $uri): bool
+    {
+        $is_valid = false;
+
+        // uri should be of pattern base_dir/file_name
+        if (str_starts_with($uri, self::PFP_DIR)) {
+            $file_name = substr($uri, strlen(self::PFP_DIR));
+            // can't exceed maximum uri length
+            if (strlen(self::PFP_DIR) + strlen($file_name) <= User::MAX_PFP_URI_LEN) {
+                // file_name can't contain certain characters
+                $has_valid_chars = preg_match(self::PFP_FILE_NAME_REGEX, $file_name);
+                if ($has_valid_chars) {
+                    $is_valid = true;
+                }
+            }
+        }
+
+        return $is_valid;
+    }
+
+    private function existsByPfpUri(String $pfp_uri)
+    {
+        $exists = false;
+
+        $query = "SELECT `user_id` FROM `users` WHERE `pfp_uri` = ?";
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(1, $pfp_uri, PDO::PARAM_STR);
+        $stmt->execute();
+
+        if ($stmt->rowCount() == 1) {
+            $exists = true;
+        }
+
+        return $exists;
+    }
+
+    private function existsByPfpUriAndId(String $pfp_uri, int $user_id)
+    {
+        $exists = false;
+
+        $query = "SELECT `user_id` FROM `users` WHERE `pfp_uri` = :pfp_uri AND `user_id` = :user_id";
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(":pfp_uri", $pfp_uri, PDO::PARAM_STR);
+        $stmt->bindParam(":user_id", $user_id, PDO::PARAM_INT);
+        $stmt->execute();
+
+        if ($stmt->rowCount() == 1) {
+            $exists = true;
+        }
+
+        return $exists;
+    }
+
+    private function savePfpImage(User $user)
+    {
+        $pfp_uri = $user->getPfpUri();
+        $pfp_img_file = fopen($_SERVER["DOCUMENT_ROOT"] . "/{$pfp_uri}", "w");
+        fwrite($pfp_img_file, $user->getPfpImageData());
+        fclose($pfp_img_file);
+    }
+
+    private function deletePfpImage(User $user) {
+        $pfp_uri = $user->getPfpUri();
+        $pfp_image_filepath = $_SERVER["DOCUMENT_ROOT"] . "/{$pfp_uri}";;
+        unlink($pfp_image_filepath);
+    }
+
     public function existsById(int $user_id): bool
     {
         $exists = false;
@@ -95,10 +167,26 @@ class UserMapper extends DataMapper
 
     public function save(User $user)
     {
-        // TODO: have to check if Id is null first, then pass to method if it isn't; do in other mappers where needed
-        if ($this->existsById($user->getId())) {
-            // TODO: custom exceptions; DuplicateKey exception
+        // is the pfp_uri valid?
+        if (!$this->validatePfpUri($user->getPfpUri())) {
             throw new Exception();
+        }
+
+        /**
+         * have to check if the pfp uri already exists still
+         * because say a user already has pfp uri /abc that contains image data for an apple
+         * and a new user is created with pfp uri /abc but image data for an orange
+         * that will change the first user's pfp to be an orange, which they may/may not have wanted
+         */
+        if (!$this->existsByPfpUri($user->getPfpUri())) {
+            throw new Exception();
+        }
+
+        $user_id_param_type = PDO::PARAM_NULL;
+        if ($user->getId()) {
+            // TODO: custom exceptions; DuplicateKey exception
+            $this->existsById($user->getId()) ? throw new Exception() : '';
+            $user_id_param_type = PDO::PARAM_INT;
         }
 
         if ($this->existsByEmail($user->getEmail())) {
@@ -110,7 +198,7 @@ class UserMapper extends DataMapper
                 VALUES (:user_id, :disp_name, :psswd_hash, :email, :activated, :bio, :cc, :pfp_uri, :created_at, :online_at)";
 
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":user_id", $user->getId(), PDO::PARAM_INT);
+        $stmt->bindParam(":user_id", $user->getId(), $user_id_param_type);
         $stmt->bindParam(":disp_name", $user->getDisplayName(), PDO::PARAM_STR);
         $stmt->bindParam(":passwd_hash", $user->getPasswordHash(), PDO::PARAM_STR);
         $stmt->bindParam(":email", $user->getEmail(), PDO::PARAM_STR);
@@ -123,7 +211,10 @@ class UserMapper extends DataMapper
         $stmt->execute();
 
         // do not need to insert anything in the settings table - that is done automatically by a trigger
+
+        $this->savePfpImage($user);
     }
+
 
     public function fetchById(int $user_id): ?User
     {
@@ -172,6 +263,11 @@ class UserMapper extends DataMapper
      */
     public function fetchByDisplayName(String $display_name, int $amount = 1, int $offset = 0): array
     {
+        $is_valid = preg_match(User::DISPLAY_NAME_REGEX, $display_name);
+        if ($is_valid) {
+            return [];
+        }
+
         $users = [];
 
         $query = "SELECT `user_id`, `display_name`, `password_hash`, `email`, `activated`, `bio`, 
@@ -199,19 +295,21 @@ class UserMapper extends DataMapper
     {
         $users = [];
 
-        $query = "SELECT `user_id`, `display_name`, `password_hash`, `email`, `activated`, `bio`, 
+        if (strlen($country_code) == User::COUNTRY_CODE_LEN) {
+            $query = "SELECT `user_id`, `display_name`, `password_hash`, `email`, `activated`, `bio`, 
                 `country_code`, `pfp_uri`, `created_at`, `online_at` FROM `users` 
                 WHERE `country_code` = :cc LIMIT :lim OFFSET :off";
-        $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":cc", $country_code, PDO::PARAM_STR);
-        $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
-        $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
-        $stmt->execute();
+            $stmt = $this->db_connection->prepare($query);
+            $stmt->bindParam(":cc", $country_code, PDO::PARAM_STR);
+            $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
+            $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
+            $stmt->execute();
 
-        if ($stmt->rowCount() >= 1) {
-            $users_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($stmt->rowCount() >= 1) {
+                $users_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $users = $this->usersFromData($users_data);
+                $users = $this->usersFromData($users_data);
+            }
         }
 
         return $users;
@@ -219,7 +317,7 @@ class UserMapper extends DataMapper
 
     public function update(User $user, bool $change_email = false)
     {
-        if (!$this->existsById($user->getId())) {
+        if (!$user->getId() or !$this->existsById($user->getId())) {
             throw new Exception();
         }
 
@@ -231,8 +329,15 @@ class UserMapper extends DataMapper
             !$this->existsByEmail($user->getEmail()) ? throw new Exception() : '';
         }
 
-        // this won't work if a user get's an ID change but that shouldn't be happening anyway
-        // don't want people to be able to update/change their numerical IDs so....
+
+        if (!$this->existsByPfpUriAndId($user->getPfpUri(), $user->getId())) {
+            if ($this->existsByPfpUri($user->getPfpUri())) {
+                throw new Exception();
+            }
+            $current_user_version = $this->fetchById($user->getId());
+            $this->deletePfpImage($current_user_version);
+        }
+
         $query = "UPDATE `users` SET `display_name`= :disp_name,`password_hash` = :passwd_hash,
                 `email` = :email, `activated` = :activated, `bio` = :bio, `country_code` = :cc,
                 `pfp_uri` = :pfp_uri, `created_at` = :created_at, `online_at` = :online_at WHERE `user_id` = :user_id";
@@ -282,6 +387,8 @@ class UserMapper extends DataMapper
             $user = $this->userFromData($user_data);
         }
 
+        $this->deletePfpImage($user);
+
         return $user;
     }
 
@@ -295,11 +402,13 @@ class UserMapper extends DataMapper
         $stmt->bindParam(1, $email, PDO::PARAM_STR);
         $stmt->execute();
 
-        if ($stmt->rowCount() >= 1) {
+        if ($stmt->rowCount() == 1) {
             $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $user = $this->userFromData($user_data);
         }
+
+        $this->deletePfpImage($user);
 
         return $user;
     }
