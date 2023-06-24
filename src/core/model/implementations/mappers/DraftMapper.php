@@ -96,6 +96,24 @@ class DraftMapper extends DataMapper
         $query = "SELECT `draft_id` FROM `blog_drafts` WHERE `body_uri` = ?";
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(1, $body_uri, PDO::PARAM_STR);
+        $stmt->execute();
+
+        if ($stmt->rowCount() == 1) {
+            $exists = true;
+        }
+
+        return $exists;
+    }
+
+    public function existsByBodyUriAndId(String $body_uri, int $draft_id)
+    {
+        $exists = false;
+
+        $query = "SELECT `draft_it` FROM `blog_drafts` WHERE `body_uri` = :body_uri AND `draft_id` = :draft_id";
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(":body_uri", $body_uri, PDO::PARAM_STR);
+        $stmt->bindParam(":draft_id", $draft_id, PDO::PARAM_INT);
+        $stmt->execute();
 
         if ($stmt->rowCount() == 1) {
             $exists = true;
@@ -134,6 +152,7 @@ class DraftMapper extends DataMapper
         $stmt->execute();
     }
 
+    // should untagging/tagging really be done in this mapper?
     private function untagDraft(int $draft_id, String $tag_name)
     {
         $query = "DELETE FROM `tagged_drafts`
@@ -151,6 +170,13 @@ class DraftMapper extends DataMapper
         $body_contents_file = fopen($_SERVER["DOCUMENT_ROOT"] . "/" . $draft->getBodyUri(), "w");
         fwrite($body_contents_file, $draft->getBodyContents());
         fclose($body_contents_file);
+    }
+
+    private function deleteBodyContents(BlogDraft $draft)
+    {
+        $body_uri = $draft->getBodyUri();
+        $body_contents_filepath = $_SERVER["DOCUMENT_ROOT"] . "/{$body_uri}";;
+        unlink($body_contents_filepath);
     }
 
     public function save(BlogDraft $draft)
@@ -174,7 +200,7 @@ class DraftMapper extends DataMapper
         }
 
         foreach ($draft->getTags() as $tag_name) {
-            if (!$this->tag_mapper->fetchByName($tag_name)) {
+            if (!$this->tag_mapper->existsByName($tag_name)) {
                 throw new Exception();
             }
         }
@@ -396,23 +422,26 @@ class DraftMapper extends DataMapper
             !$this->existsByDrafterAndDraftName($draft->getDrafterId(), $draft->getName()) ? throw new Exception() : "";
         }
 
-        // do we need to check if body uri is valid here? i don't think so...
-
-        if (!$this->existsByBodyUri($draft->getBodyUri())) {
-            throw new Exception();
-        }
-
         foreach ($draft->getTags() as $tag_name) {
-            if (!$this->tag_mapper->fetchByName($tag_name)) {
+            if (!$this->tag_mapper->existsByName($tag_name)) {
                 throw new Exception();
             }
         }
 
-        $query = "UPDATE `blog_drafts` SET `published_blog_id` = :pub_blog_id, `name` = :name, `title` = :title,
+        if (!$this->existsByBodyUriAndId($draft->getBodyUri(), $draft->getId())) {
+            if ($this->existsByBodyUri($draft->getBodyUri())) {
+                throw new Exception();
+            }
+            $current_draft_version = $this->fetchById($draft->getId());
+            $this->deleteBodyContents($current_draft_version);
+        }
+
+        $query = "UPDATE `blog_drafts` SET `body_uri` = :body_uri, `published_blog_id` = :pub_blog_id, `name` = :name, `title` = :title,
                 `created_at` = :created_at, `updated_at` = :updated_at WHERE `draft_id` = :draft_id";
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":draft_id", $draft->getId(), $draft_id_param_type);
+        $stmt->bindParam(":body_uri", $draft->getBodyUri(), PDO::PARAM_STR);
         $stmt->bindParam(":pub_blog_id", $draft->getPublishedBlogId(), PDO::PARAM_INT);
         $stmt->bindParam(":name", $draft->getName(), PDO::PARAM_STR);
         $stmt->bindParam(":title", $draft->getTitle(), PDO::PARAM_STR);
@@ -462,6 +491,8 @@ class DraftMapper extends DataMapper
             $draft = $this->draftFromData($draft_data);
         }
 
+        $this->deleteBodyContents($draft);
+
         return $draft;
     }
 
@@ -482,6 +513,10 @@ class DraftMapper extends DataMapper
             $drafts = $this->draftsFromData($drafts_data);
         }
 
+        foreach ($drafts as $draft) {
+            $this->deleteBodyContents($draft);
+        }
+
         return $drafts;
     }
 
@@ -500,6 +535,10 @@ class DraftMapper extends DataMapper
             $drafts_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $drafts = $this->draftsFromData($drafts_data);
+        }
+
+        foreach ($drafts as $draft) {
+            $this->deleteBodyContents($draft);
         }
 
         return $drafts;
