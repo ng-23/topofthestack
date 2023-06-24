@@ -118,13 +118,31 @@ class BlogMapper extends DataMapper
         return $exists;
     }
 
-    private function bodyUriExists(String $body_uri): bool
+    private function existsByBodyUri(String $body_uri): bool
     {
         $exists = false;
 
         $query = "SELECT `blog_id` FROM `published_blogs` WHERE `body_uri` = ?";
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(1, $body_uri, PDO::PARAM_STR);
+        $stmt->execute();
+
+        if ($stmt->rowCount() == 1) {
+            $exists = true;
+        }
+
+        return $exists;
+    }
+
+    private function existsByBodyUriAndId(String $body_uri, int $blog_id)
+    {
+        $exists = false;
+
+        $query = "SELECT `blog_id` FROM `published_blogs` WHERE `body_uri` = :body_uri AND `blog_id` = :blog_id";
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(":body_uri", $body_uri, PDO::PARAM_STR);
+        $stmt->bindParam(":blog_id", $blog_id, PDO::PARAM_INT);
+        $stmt->execute();
 
         if ($stmt->rowCount() == 1) {
             $exists = true;
@@ -160,6 +178,13 @@ class BlogMapper extends DataMapper
         $body_contents_file = fopen($_SERVER["DOCUMENT_ROOT"] . "/{$body_uri}", "w");
         fwrite($body_contents_file, $blog->getBodyContents());
         fclose($body_contents_file);
+    }
+
+    private function deleteBodyContents(PublishedBlog $blog)
+    {
+        $body_uri = $blog->getBodyUri();
+        $body_contents_filepath = $_SERVER["DOCUMENT_ROOT"] . "/{$body_uri}";;
+        unlink($body_contents_filepath);
     }
 
     private function tagBlog(int $blog_id, String $tag_name)
@@ -211,7 +236,7 @@ class BlogMapper extends DataMapper
             throw new Exception();
         }
 
-        if ($this->bodyUriExists($blog->getBodyUri())) {
+        if ($this->existsByBodyUri($blog->getBodyUri())) {
             throw new Exception();
         }
 
@@ -665,23 +690,37 @@ class BlogMapper extends DataMapper
             !$this->existsByAuthorAndTitle($blog->getAuthorId(), $blog->getTitle()) ? throw new Exception() : "";
         }
 
-        if (!$this->bodyUriExists($blog->getBodyUri())) {
-            throw new Exception();
-        }
 
         foreach ($blog->getTags() as $tag_name) {
-            if (!$this->tag_mapper->fetchByName($tag_name)) {
+            if (!$this->tag_mapper->existsByName($tag_name)) {
                 throw new Exception();
             }
         }
 
-        $query = "UPDATE `published_blogs` SET `title`=:title, `comments_today`=:cmmnts_today, `likes_today`=:likes_today,
-                `views_today`=:views_today, `total_comments`=:total_cmmnts, `total_likes`=:total_likes, `total_views`=:total_views,
-                `created_at`=:created_at, `updated_at`=:updated_at WHERE `blog_id`=:blog_id";
+
+        // save this check for last
+        // if the uri hasn't stayed the same (aka, if !$this->bodyUriExistsByBlog)
+        // then check if the new uri is taken (so if $this->bodyUriExists)
+        // if it is taken, throw an exception
+        // if not, fetch the current blog entity from the DB (which will have old body uri), 
+        // then delete the existing file on disk with the old body uri
+        if (!$this->existsByBodyUriAndId($blog->getBodyUri(), $blog->getId())) {
+            if ($this->existsByBodyUri($blog->getBodyUri())) {
+                throw new Exception();
+            }
+            $current_blog_version = $this->fetchById($blog->getId());
+            $this->deleteBodyContents($current_blog_version);
+        }
+
+        $query = "UPDATE `published_blogs` SET `title` = :title, `body_uri` = :body_uri, 
+                `comments_today` = :cmmnts_today, `likes_today` = :likes_today,
+                `views_today` = :views_today, `total_comments` = :total_cmmnts, `total_likes` = :total_likes, `total_views` = :total_views,
+                `created_at` = :created_at, `updated_at` = :updated_at WHERE `blog_id` = :blog_id";
 
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":blog_id", $blog->getId(), PDO::PARAM_INT);
         $stmt->bindParam(":title", $blog->getTitle(), PDO::PARAM_STR);
+        $stmt->bindParam(":body_uri", $blog->getBodyUri(), PDO::PARAM_STR);
         $stmt->bindParam(":cmmnts_today", $blog->getCommentsToday(), PDO::PARAM_INT);
         $stmt->bindParam(":likes_today", $blog->getLikesToday(), PDO::PARAM_INT);
         $stmt->bindParam(":views_today", $blog->getViewsToday(), PDO::PARAM_INT);
@@ -722,6 +761,8 @@ class BlogMapper extends DataMapper
      * Returns the deleted blog, or NULL if the blog to delete does not exist
      */
     public function deleteById(int $blog_id): ?PublishedBlog
+    // would also probably want to delete any images saved locally that were used in the blog
+    // but get to that later...
     {
         $blog = NULL;
 
@@ -732,11 +773,13 @@ class BlogMapper extends DataMapper
         $stmt->bindParam(":blog_id", $blog_id, PDO::PARAM_INT);
         $stmt->execute();
 
-        if ($stmt->rowCount() >= 1) {
+        if ($stmt->rowCount() == 1) {
             $blog_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $blog = $this->blogFromData($blog_data);
         }
+
+        $this->deleteBodyContents($blog);
 
         return $blog;
     }
@@ -756,6 +799,10 @@ class BlogMapper extends DataMapper
             $blogs_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $blogs = $this->blogsFromData($blogs_data);
+
+            foreach ($blogs as $blog) {
+                $this->deleteBodyContents($blog);
+            }
         }
 
         return $blogs;
