@@ -10,8 +10,6 @@ require_once("BlogMapper.php");
 
 class CommentMapper extends DataMapper
 {
-    // when filtering comments on blogs,
-    // there should be the option to sort newest/oldest and most popular (based on likes)
     public const SORT_MOST_LIKES = 1;
     public const SORT_NEWEST_FIRST = 2;
     public const SORT_OLDEST_FIRST = 3;
@@ -37,8 +35,8 @@ class CommentMapper extends DataMapper
 
         $comment->setTotalLikes($comment_data["total_likes"]);
 
-        $comment->setCreatedAt(DateTimeImmutable::createFromFormat(Comment::DATE_FORMAT, $comment_data["created_at"]));
-        $comment->setUpdatedAt(DateTimeImmutable::createFromFormat(Comment::DATE_FORMAT, $comment_data["updated_at"]));
+        $comment->setCreatedAt(new DateTimeImmutable(date(Comment::DATE_FORMAT, $comment_data["created_at"])));
+        $comment->setUpdatedAt(new DateTimeImmutable(date(Comment::DATE_FORMAT, $comment_data["updated_at"])));
 
         return $comment;
     }
@@ -136,11 +134,10 @@ class CommentMapper extends DataMapper
         $stmt->bindParam(":blog_id", $comment->getBlogId(), PDO::PARAM_INT);
         $stmt->bindParam(":contents", $comment->getContents(), PDO::PARAM_STR);
         $stmt->bindParam(":total_likes", $comment->getTotalLikes(), PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $comment->getCreatedAt(), PDO::PARAM_STR);
-        $stmt->bindParam(":updated_at", $comment->getUpdatedAt(), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $comment->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":updated_at", $comment->getUpdatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
     }
-
 
     public function fetchById(int $comment_id)
     {
@@ -268,10 +265,10 @@ class CommentMapper extends DataMapper
 
         $query = "SELECT `comment_id`, `commentor_id`, `blog_id`, `contents`, 
                 `total_likes`, `created_at`, `updated_at` FROM `comments`
-                WHERE `commentor_id` = :commentor_id AND `created_at` = :creatd_at LIMIT :lim OFFSET :off";
+                WHERE `commentor_id` = :commentor_id AND `created_at` = :created_at LIMIT :lim OFFSET :off";
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":commentor_id", $commentor_id, PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $date, PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $date->getTimestamp(), PDO::PARAM_INT);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -286,7 +283,7 @@ class CommentMapper extends DataMapper
 
     // this method and the one above are perhaps a little redundant because of the sort param for the fetchByCommentorId method
     // but they offer more control over sorting by date instead of just newest or oldest first, so may be value in keeping them...
-    public function fetchByCommentorAndCreatedBetween(int $commentor_id, DateTimeImmutable $date1, DateTimeImmutable $date2, int $amount = 1, int $offset = 0, bool $newest_first = true)
+    public function fetchByCommentorAndCreatedBetween(int $commentor_id, DateTimeImmutable $date1, DateTimeImmutable $date2, int $amount = 1, int $offset = 0)
     {
         $comments = [];
 
@@ -296,65 +293,8 @@ class CommentMapper extends DataMapper
                 (`created_at` > :date1 AND `created_at` < :date2) LIMIT :lim OFFSET :off";
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":commentor_id", $commentor_id, PDO::PARAM_INT);
-        $stmt->bindParam(":date1", $date1, PDO::PARAM_STR);
-        $stmt->bindParam(":date2", $date2, PDO::PARAM_STR);
-        $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
-        $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
-        $stmt->execute();
-
-        if ($stmt->rowCount() >= 1) {
-            $comments_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $comments = $this->commentsFromData($comments_data);
-        }
-
-        return $comments;
-    }
-
-    // what would the purpose of this be? i don't intend to allow the client to view comments on a specific day or date range of their choosing
-    // if it was for oldest/newest first filtering, then that's taken care of by the SORT constants used in the fetchByBlogId method
-    // this can probably be deprecated before committing...
-    public function fetchByCreatedAt(int $blog_id, String $when = "on", DateTimeImmutable $date1, ?DateTimeImmutable $date2, int $amount = 1, int $offset = 0, ?String $sort_order = NULL)
-    {
-        if ($amount < 0 || $offset < 0) {
-            throw new Exception();
-        }
-
-        if ($sort_order) {
-            $sort_order = strtoupper($sort_order);
-            if ($sort_order != "ASC" || $sort_order != "DESC") {
-                throw new Exception(); // big TODO: throw more specific exceptions
-            }
-        }
-
-        $base_query = "SELECT `comment_id`, `commentor_id`, `blog_id`, `contents`, `total_likes`, 
-                    `created_at`, `updated_at` FROM `comments` WHERE `blog_id` = :blog_id 
-                    AND :condition ORDER BY `created_at` {$sort_order} LIMIT :lim OFFSET :off";
-
-        $query = "";
-
-        $stmt = NULL;
-
-        $comments = [];
-
-        if (!$date2) {
-            $date2 = new DateTimeImmutable("now");
-        }
-
-        if ($when == "on" || $when == "before" || $when == "after") {
-            $condition = "(`created_at` = :date1 OR `created_at` = :date2)";
-        } elseif ($when == "between") {
-            $condition = "(`created_at > :date1 AND `created_at` < :date2)";
-        } else {
-            throw new Exception();
-        }
-
-        $query = str_replace(":condition", $condition, $base_query);
-
-        $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":blog_id", $blog_id, PDO::PARAM_INT);
-        $stmt->bindParam(":date1", $date1, PDO::PARAM_STR);
-        $stmt->bindParam(":date2", $date2, PDO::PARAM_STR);
+        $stmt->bindParam(":date1", $date1->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":date2", $date2->getTimestamp(), PDO::PARAM_INT);
         $stmt->bindParam(":lim", $amount, PDO::PARAM_INT);
         $stmt->bindParam(":off", $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -390,8 +330,8 @@ class CommentMapper extends DataMapper
         $stmt->bindParam(":comment_id", $comment->getId(), PDO::PARAM_INT);
         $stmt->bindParam(":contents", $comment->getContents(), PDO::PARAM_STR);
         $stmt->bindParam(":total_likes", $comment->getTotalLikes(), PDO::PARAM_INT);
-        $stmt->bindParam(":created_at", $comment->getCreatedAt(), PDO::PARAM_STR);
-        $stmt->bindParam(":updated_at", $comment->getUpdatedAt(), PDO::PARAM_STR);
+        $stmt->bindParam(":created_at", $comment->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
+        $stmt->bindParam(":updated_at", $comment->getUpdatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
     }
 
