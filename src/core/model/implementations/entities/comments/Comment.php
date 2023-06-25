@@ -7,7 +7,7 @@ require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entit
 class Comment extends Entity
 {
     public const DATE_FORMAT = "Y-m-d H:i:s";
-    public const MAX_CONTENTS_LEN = 135;
+    public const MAX_CONTENTS_LEN = 500;
 
     private int $commentor_id;
     private int $blog_id;
