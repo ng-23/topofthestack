@@ -3,9 +3,8 @@
 declare(strict_types=1);
 
 require_once realpath(dirname(__FILE__) . '../../../../') . '/abstractions/entities/Entity.php';
-require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/username_generator.php';
-require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/Jwt.php';
-require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/isimage.php';
+require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/display_name_generator.php';
+require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/is_image.php';
 
 class User extends Entity
 {
@@ -25,6 +24,7 @@ class User extends Entity
     private bool $activated;
     private ?String $bio;
     private ?String $country_code;
+    
     private String $pfp_uri;
     private String $pfp_img_data;
     private DateTimeImmutable $created_at, $online_at;
@@ -135,7 +135,7 @@ class User extends Entity
 
             $this->display_name = $display_name;
         } else {
-            $this->display_name = generate_username();
+            $this->display_name = generate_display_name();
         }
     }
 
@@ -196,10 +196,27 @@ class User extends Entity
 
     public function setPfpImageData(String $image_data)
     {
+        // image_data is basically just the raw bytes of the image file
+        // this method is where you check mime type, size, etc.
 
+        /**
+         * should this be concerned with image size (eg 96x96)
+         * i feel like that is presentation layer logic
+         * but i do think backend should be concerned with file size
+         * also should probably consider (and this goes for every class) moving certain constants into config files
+         * like PFP_MAX_FILE_SIZE_MB should probably be in a config file
+         * MAX_URI_LEN could probably either stay a class constant or be part of a "global" config file
+         * see https://ux.stackexchange.com/questions/95196/how-can-we-go-about-deciding-an-appropriate-filesize-upload-limit
+         * see https://stackoverflow.com/questions/3511106/filesize-from-a-string
+         * see https://stackoverflow.com/questions/4286677/show-image-using-file-get-contents?noredirect=1&lq=1
+         * see https://stackoverflow.com/questions/6061505/detecting-image-type-from-base64-string-in-php
+         * see https://www.php.net/manual/en/function.exif-imagetype.php
+         * see https://stackoverflow.com/questions/9314164/php-uploading-files-image-only-checking
+         * see https://stackoverflow.com/questions/15117303/saving-image-straight-to-directory-in-php
+         */
 
         $size_in_bytes = strlen($image_data);
-        if ($size_in_bytes < UserMapper::PFP_MIN_FILE_SIZE_B or $size_in_bytes > UserMapper::PFP_MAX_FILE_SIZE_MB * self::BYTES_IN_MB) {
+        if ($size_in_bytes == 0 or $size_in_bytes > UserMapper::PFP_MAX_FILE_SIZE_MB * self::BYTES_IN_MB) {
             throw new Exception();
         }
 
