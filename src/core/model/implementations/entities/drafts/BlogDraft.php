@@ -11,6 +11,10 @@ class BlogDraft extends Entity
     public const MIN_NAME_LEN = 1;
     public const MAX_NAME_LEN = 16;
     public const NAME_REGEX = "@^[a-zA-Z#][a-zA-Z0-9_]{" . self::MIN_NAME_LEN - 1 . "," . self::MAX_NAME_LEN - 1 . "}$@";
+    //public const URI_BASE_DIR = "resources/drafts/";
+    //public const URI_REGEX = "#[a-zA-Z0-9/_]{" . PublishedBlog::MIN_URI_LEN . "," . PublishedBlog::MAX_URI_LEN . "}#";
+    // ^(resources/blogs/)[a-zA-Z0-9]{1,239}$
+    //public const URI_REGEX = "#^(" . self::URI_BASE_DIR . ")[a-zA-Z0-9_]{1," . self::MAX_URI_LEN-16 . "}$#";
 
     private HTMLPurifier $html_purifier;
     private int $drafter_id;
@@ -85,7 +89,7 @@ class BlogDraft extends Entity
             throw new Exception();
         }
 
-        $is_valid = preg_match(Tag::VALID_NAME_REGEX, $tag_name);
+        $is_valid = preg_match(Tag::NAME_REGEX, $tag_name);
         if (!$is_valid) {
             throw new Exception();
         }
