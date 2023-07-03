@@ -13,6 +13,7 @@ class NotificationMapper extends DataMapper
     public const SORT_NEWEST_FIRST = 1;
     public const SORT_OLDEST_FIRST = 2;
     public const SORT_NO_ORDER = 3;
+    public const IMG_DIR = "resources/images";
 
     private NotificationFactory $notification_factory;
     private UserMapper $user_mapper;
@@ -95,6 +96,21 @@ class NotificationMapper extends DataMapper
         return $sort_by_str;
     }
 
+    private function saveImage(Notification $notification)
+    {
+        $img_uri = $notification->getImageUri();
+        $img_file = fopen($_SERVER["DOCUMENT_ROOT"] . "/{$img_uri}", "w");
+        fwrite($img_file, $notification->getImageData());
+        fclose($img_file);
+    }
+
+    private function deleteImage(Notification $notification)
+    {
+        $img_uri = $notification->getImageUri();
+        $img_file = $_SERVER["DOCUMENT_ROOT"] . "/{$img_uri}";;
+        unlink($img_file);
+    }
+
     public function existsById(int $notification_id): bool
     {
         $exists = false;
@@ -117,10 +133,50 @@ class NotificationMapper extends DataMapper
         return $exists;
     }
 
+    public function existsByImageUri(String $image_uri): bool
+    {
+
+        $exists = false;
+
+        $query = "SELECT `notification_id` FROM `notifications` WHERE `image_uri` = ?";
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(1, $image_uri, PDO::PARAM_STR);
+        $stmt->execute();
+
+        if ($stmt->rowCount() >= 1) {
+            $exists = true;
+        }
+
+        return $exists;
+    }
+
+    public function existsByImageUriAndId(String $image_uri, int $notification_id): bool
+    {
+        $exists = false;
+
+        $query = "SELECT `notification_id` FROM `notifications` WHERE `image_uri` = :img_uri AND `notification_id` = :id";
+        $stmt = $this->db_connection->prepare($query);
+        $stmt->bindParam(":img_uri", $image_uri, PDO::PARAM_STR);
+        $stmt->bindParam(":id", $notification_id, PDO::PARAM_INT);
+        $stmt->execute();
+
+        if ($stmt->rowCount() == 1) {
+            $exists = true;
+        }
+
+        return $exists;
+    }
+
     public function save(Notification $notification)
     {
-        // why does a notification need an id? what would that be used for?
-
+        /**
+         * Should the mapper be responsible for determine if the notification is allowed to be sent or not?
+         * like if the user has disabled notifications from follow requests, and we're trying to insert a notification for a follow request
+         * should the mapper be the one to throw an error indicating that setting?
+         * if not the mapper, it would have to be a service...
+         * i think it should be the mapper, since ultimately the mapper is what inserts the record
+         * and it shouldn't be designed such that you have to go through a service first to check the receiving user's settings
+         */
 
         if ($this->existsById($notification->getId())) {
             throw new Exception();
@@ -131,8 +187,37 @@ class NotificationMapper extends DataMapper
         }
 
         // check that user's settings permit sending this type of notification
+        /**
+         * is this a violation of single responsibility principle?
+         * in other words, should we not be doing this check in this method? should it be done in (for example) a service instead?
+         * i ask this because eventually I will need a mapper for the followers/following table
+         * and when inserting a record into that table (aka, initiating a follower request), should that also send a notification
+         * if permitted by the followee's settings?
+         * i can see both sides, but personally I kind of lean towards yes, it should, since it just seems natural/logical
+         * still, it's called the save method, not the saveAndSendANotificationIfPossible method...
+         * i think this check below is actually different from aforementioned scenario though, since it's business logic (a check) and
+         * not an action (sending something)
+         * so it's fine to check settings here, but when doing something like sending a notification, that should be done separately from
+         * the insert method
+         * also, this applies to the blog and comment mappers - need to send notifications when a blog is posted to followers and send
+         * a notification when a comment is made on someone's blog
+         */
         if (!$this->checkUserSettingsAllowNotification($notification->getUserId(), $notification->getType())) {
             throw new Exception();
+        }
+
+        $default_img_uri = self::IMG_DIR . "/" . Notification::DEFAULT_IMG;
+        if ($notification->getImageUri() == $default_img_uri) {
+            // probably shouldn't be using _SERVER like this
+            // makes testing harder because now the web server has to be online
+            $default_img_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_img_uri}");
+            if ($default_img_data != $notification->getImageData()) {
+                throw new Exception();
+            }
+        } else {
+            if (!$this->existsByImageUri($notification->getImageUri())) {
+                throw new Exception();
+            }
         }
 
         $query = "INSERT INTO `notifications` (`notification_id`, `user_id`, `typ`, `header`, `body`, `image_uri`, `seen`, `created_at`) 
@@ -147,6 +232,8 @@ class NotificationMapper extends DataMapper
         $stmt->bindParam(":seen", (int)$notification->wasSeen(), PDO::PARAM_INT);
         $stmt->bindParam(":created_at", $notification->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
+
+        $this->saveImage($notification);
     }
 
     public function fetchById(int $notification_id): ?Notification
@@ -234,6 +321,22 @@ class NotificationMapper extends DataMapper
             throw new Exception();
         }
 
+        $default_img_uri = self::IMG_DIR . "/" . Notification::DEFAULT_IMG;
+        $current_notif_version = $this->fetchById($notification->getId());
+        if ($notification->getImageUri() == $default_img_uri) {
+            $default_img_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_img_uri}");
+            if ($default_img_data != $notification->getImageData()) {
+                throw new Exception();
+            }
+        } else {
+            if (!$this->existsByImageUriAndId($notification->getImageUri(), $notification->getId())) {
+                if ($this->$notification($notification->getImageUri())) {
+                    throw new Exception();
+                }
+                $this->deleteImage($current_notif_version); // don't delete the image associated with default uri
+            }
+        }
+
         // you cannot change the notification or user id, nor the notification type
         // probably shouldn't be able to update created_at (this goes for most other mappers too)
         $query = "UPDATE `notifications` SET `header` = :header,`body` = :body, `image_uri` = :img_uri, 
@@ -246,6 +349,8 @@ class NotificationMapper extends DataMapper
         $stmt->bindParam(":seen", (int)$notification->wasSeen(), PDO::PARAM_INT);
         $stmt->bindParam(":created_at", $notification->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
+
+        $this->saveImage($notification);
     }
 
     public function deleteById(int $notification_id)
