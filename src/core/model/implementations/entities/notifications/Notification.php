@@ -7,10 +7,6 @@ require_once realpath(dirname(__FILE__) . '../../../../../') . '/utils/is_image.
 
 class Notification extends Entity
 {
-    /* public const TYPE_SYSTEM = 0;
-    public const TYPE_BLOG_COMMENT = 1;
-    public const TYPE_FOLLOW_REQ = 2;
-    public const TYPE_BLOG_FROM_FOLLOWING = 3; */
     public const VALID_TYPES = [
         "TYPE_SYSTEM" => 0,
         "TYPE_BLOG_COMMENT" => 1,
@@ -18,28 +14,14 @@ class Notification extends Entity
         "TYPE_BLOG_FROM_FOLLOWING" => 3,
     ];
 
-    // consider making this a timestamp for more precise record keeping
-    // maybe make everything a timestamp
-    // although for i don't really care to know when exactly a user signed up...
-    // also run in to the issue of best way to store the timestamps, as the timestamp data type in sql only goes up to 2038
-    // could store as a unix big int timestamp in the DB, then convert to a datetimeimmutable object in php
-    // of coure, this makes it so you have to manually change the updated_at timestamp
     public const DATE_FORMAT = "Y-m-d H:i:s";
     public const MAX_HEADER_LEN = 64;
     public const MAX_BODY_LEN = 150;
     public const MIN_IMG_URI_LEN = 5;
     public const MAX_IMG_URI_LEN = 255;
+    public const DEFAULT_IMG = "logo_small1.png";
 
     private int $user_id;
-    /**
-     * on SO, header would be equivalent to something like "question closed"
-     * and body would be like "your question `Really Dumb Question` was recently close"
-     * if the mapper is going to check if a notification is allowed to be sent to a user, it needs to know the
-     * notifications type and then check the user's settings to see if that type is disallowed
-     * so introduce a type variable in here (and of course the DB)
-     * it should be a numerical code, where (for example) 1 = comment on post, 2 = follow request, 3 = blog from following, etc.
-     * maybe also change header and body to header_text and body_text or something like that (for clarity sake)
-     */
     private int $type;
     private String $header, $body;
     private String $image_uri, $image_data;
@@ -134,7 +116,7 @@ class Notification extends Entity
             }
             $this->image_uri = $uri;
         } else {
-            $this->image_uri = NotificationMapper::IMG_DIR . "/logo_small1.png";
+            $this->image_uri = NotificationMapper::IMG_DIR . "/" . self::DEFAULT_IMG;
 
             $this->setImageData(file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$this->image_uri}"));
         }
