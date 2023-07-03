@@ -17,6 +17,7 @@ class User extends Entity
     public const MIN_PFP_URI_LEN = 5;
     public const MAX_PFP_URI_LEN = 255;
     public const BYTES_IN_MB = 1000000;
+    public const DEFAULT_PFPS = ["pfp_default01.png", "pfp_default02.png", "pfp_default03.png", "pfp_default04.png"];
 
     private String $display_name;
     private String $password_hash;
@@ -24,7 +25,7 @@ class User extends Entity
     private bool $activated;
     private ?String $bio;
     private ?String $country_code;
-    
+
     private String $pfp_uri;
     private String $pfp_img_data;
     private DateTimeImmutable $created_at, $online_at;
@@ -184,9 +185,7 @@ class User extends Entity
             $this->pfp_uri = $uri;
         } else {
             // choose 1 of 4 random default pfps
-            $rand_int = random_int(1, 4);
-
-            $pfp = "pfp_default0{$rand_int}.png";
+            $pfp = array_rand(self::DEFAULT_PFPS, 1);
 
             $this->pfp_uri = UserMapper::PFP_DIR . "/{$pfp}";
 
