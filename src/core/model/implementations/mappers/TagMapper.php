@@ -249,22 +249,20 @@ class TagMapper extends DataMapper
             $tags_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $tags = $this->tagsFromData($tags_data);
         }
-        
+
         return $tags;
     }
 
-    public function update(Tag $tag, bool $change_name = false)
+    public function update(Tag $tag)
     {
         if (!$tag->getId() or !$this->existsById($tag->getId())) {
             throw new Exception();
         }
 
-        if ($change_name) {
-            // if we're changing the name but it's already taken, there's a problem
-            $this->existsByName($tag->getName()) ? throw new Exception() : '';
-        } else {
-            // if we're not changing the name but no tags have it, there's a problem
-            !$this->existsByName($tag->getName()) ? throw new Exception() : '';
+        $current_tag_version = $this->fetchById($tag->getId());
+        // if we're attempting to change tag name but it's already taken
+        if ($current_tag_version->getName() != $tag->getName() and $this->existsByName($tag->getName())) {
+            throw new Exception();
         }
 
         $query = "UPDATE `tags` SET `name` = :tag_name, `tagged_with_today` = :tagged_today,
