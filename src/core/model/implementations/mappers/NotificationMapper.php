@@ -215,7 +215,7 @@ class NotificationMapper extends DataMapper
                 throw new Exception();
             }
         } else {
-            if (!$this->existsByImageUri($notification->getImageUri())) {
+            if ($this->existsByImageUri($notification->getImageUri())) {
                 throw new Exception();
             }
         }
@@ -322,7 +322,6 @@ class NotificationMapper extends DataMapper
         }
 
         $default_img_uri = self::IMG_DIR . "/" . Notification::DEFAULT_IMG;
-        $current_notif_version = $this->fetchById($notification->getId());
         if ($notification->getImageUri() == $default_img_uri) {
             $default_img_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_img_uri}");
             if ($default_img_data != $notification->getImageData()) {
@@ -330,10 +329,12 @@ class NotificationMapper extends DataMapper
             }
         } else {
             if (!$this->existsByImageUriAndId($notification->getImageUri(), $notification->getId())) {
-                if ($this->$notification($notification->getImageUri())) {
+                if ($this->existsByImageUri($notification->getImageUri())) {
                     throw new Exception();
                 }
-                $this->deleteImage($current_notif_version); // don't delete the image associated with default uri
+                // don't delete the image associated with default uri
+                // delete image with old uri saved in database
+                $this->deleteImage($this->fetchById($notification->getId())); 
             }
         }
 
