@@ -10,7 +10,6 @@ class UserMapper extends DataMapper
 {
     public const PFP_FILE_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9_]*$#";
     public const PFP_DIR = "resources/images";
-    public const PFP_MIN_FILE_SIZE_B = 12; // see https://www.php.net/manual/en/function.exif-imagetype.php#79283
     public const PFP_MAX_FILE_SIZE_MB = 3;
 
     private UserFactory $user_factory;
@@ -137,7 +136,8 @@ class UserMapper extends DataMapper
         fclose($pfp_img_file);
     }
 
-    private function deletePfpImage(User $user) {
+    private function deletePfpImage(User $user)
+    {
         $pfp_uri = $user->getPfpUri();
         $pfp_image_filepath = $_SERVER["DOCUMENT_ROOT"] . "/{$pfp_uri}";;
         unlink($pfp_image_filepath);
@@ -172,13 +172,20 @@ class UserMapper extends DataMapper
             throw new Exception();
         }
 
-        /**
-         * have to check if the pfp uri already exists still
-         * because say a user already has pfp uri /abc that contains image data for an apple
-         * and a new user is created with pfp uri /abc but image data for an orange
-         * that will change the first user's pfp to be an orange, which they may/may not have wanted
-         */
-        if (!$this->existsByPfpUri($user->getPfpUri())) {
+        $is_default_pfp = false;
+        foreach (User::DEFAULT_PFPS as $default_pfp) {
+            $default_pfp_uri = self::PFP_DIR . "/{$default_pfp}";
+            if ($user->getPfpUri() == $default_pfp_uri) {
+                $default_pfp_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_pfp_uri}");
+                if ($default_pfp_data != $user->getPfpImageData()) {
+                    throw new Exception();
+                }
+                $is_default_pfp = true;
+                break;
+            }
+        }
+
+        if (!$is_default_pfp and $this->existsByPfpUri($user->getPfpUri())) {
             throw new Exception();
         }
 
@@ -330,12 +337,26 @@ class UserMapper extends DataMapper
         }
 
 
-        if (!$this->existsByPfpUriAndId($user->getPfpUri(), $user->getId())) {
-            if ($this->existsByPfpUri($user->getPfpUri())) {
-                throw new Exception();
+        $is_default_pfp = false;
+        foreach (User::DEFAULT_PFPS as $default_pfp) {
+            $default_pfp_uri = self::PFP_DIR . "/{$default_pfp}";
+            if ($user->getPfpUri() == $default_pfp_uri) {
+                $default_pfp_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_pfp_uri}");
+                if ($user->getPfpImageData() != $default_pfp_data) {
+                    throw new Exception();
+                }
+                $is_default_pfp = true;
+                break;
             }
-            $current_user_version = $this->fetchById($user->getId());
-            $this->deletePfpImage($current_user_version);
+        }
+
+        if (!$is_default_pfp) {
+            if (!$this->existsByPfpUriAndId($user->getPfpUri(), $user->getId())) {
+                if ($this->existsByPfpUri($user->getPfpUri())) {
+                    throw new Exception();
+                }
+                $this->deletePfpImage($this->fetchById($user->getId()));
+            }
         }
 
         $query = "UPDATE `users` SET `display_name`= :disp_name,`password_hash` = :passwd_hash,
@@ -365,6 +386,8 @@ class UserMapper extends DataMapper
             $stmt->bindParam(":{$setting}", $enabled, PDO::PARAM_INT);
         }
         $stmt->execute();
+
+        $this->savePfpImage($user);
     }
 
     // note about delete methods: do not need to delete from settings table as a trigger takes care of that...
