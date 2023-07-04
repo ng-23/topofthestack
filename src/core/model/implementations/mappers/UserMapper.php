@@ -322,20 +322,17 @@ class UserMapper extends DataMapper
         return $users;
     }
 
-    public function update(User $user, bool $change_email = false)
+    public function update(User $user)
     {
         if (!$user->getId() or !$this->existsById($user->getId())) {
             throw new Exception();
         }
 
-        if ($change_email) {
-            // if we're changing the email address but it's already taken, there's a problem
-            $this->existsByEmail($user->getEmail()) ? throw new Exception() : '';
-        } else {
-            // if we're not changing the email address but no users have it, there's a problem
-            !$this->existsByEmail($user->getEmail()) ? throw new Exception() : '';
+        $current_user_version = $this->fetchById($user->getId());
+        // if we're attempting to change the email and the email address is already taken
+        if ($current_user_version->getEmail() != $user->getEmail() and $this->existsByEmail($user->getEmail())) {
+            throw new Exception();
         }
-
 
         $is_default_pfp = false;
         foreach (User::DEFAULT_PFPS as $default_pfp) {
