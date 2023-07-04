@@ -674,7 +674,7 @@ class BlogMapper extends DataMapper
         return $blogs;
     }
 
-    public function update(PublishedBlog $blog, bool $change_title = false)
+    public function update(PublishedBlog $blog)
     {
         if (strlen($blog->getBodyContents()) == 0) {
             throw new Exception();
@@ -684,19 +684,17 @@ class BlogMapper extends DataMapper
             throw new Exception();
         }
 
-        if ($change_title) {
-            $this->existsByAuthorAndTitle($blog->getAuthorId(), $blog->getTitle()) ? throw new Exception() : "";
-        } else {
-            !$this->existsByAuthorAndTitle($blog->getAuthorId(), $blog->getTitle()) ? throw new Exception() : "";
+        $current_blog_version = $this->fetchById($blog->getId());
+        // if we're trying to change blog title and it's already been used by the same author
+        if ($current_blog_version->getTitle() != $blog->getTitle() and $this->existsByAuthorAndTitle($blog->getAuthorId(), $blog->getTitle())) {
+            throw new Exception();
         }
-
 
         foreach ($blog->getTags() as $tag_name) {
             if (!$this->tag_mapper->existsByName($tag_name)) {
                 throw new Exception();
             }
         }
-
 
         // save this check for last
         // if the uri hasn't stayed the same (aka, if !$this->bodyUriExistsByBlog)
