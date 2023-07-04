@@ -205,10 +205,6 @@ class DraftMapper extends DataMapper
             }
         }
 
-        // TODO: possible implement a check here that determines how many drafts a user has total and/or
-        // how many drafts a user has associated with a published blog
-        // would need to store a constant somewhere that denotes the max number of drafts total/per published blog
-
         $query = "INSERT INTO `blog_drafts` (`draft_id`, `drafter_id`, `body_uri`, `published_blog_id`, `name`, 
                 `title`, `created_at`, `updated_at`) VALUES (:draft_id,
                 :drafter_id, :body_uri, :published_blog_id, :name, :title,
@@ -408,7 +404,7 @@ class DraftMapper extends DataMapper
         return $drafts;
     }
 
-    public function update(BlogDraft $draft, bool $change_name = false)
+    public function update(BlogDraft $draft)
     {
         $draft_id_param_type = PDO::PARAM_NULL;
         if ($draft->getId()) {
@@ -416,10 +412,9 @@ class DraftMapper extends DataMapper
             $draft_id_param_type = PDO::PARAM_INT;
         }
 
-        if ($change_name) {
-            $this->existsByDrafterAndDraftName($draft->getDrafterId(), $draft->getName()) ? throw new Exception() : "";
-        } else {
-            !$this->existsByDrafterAndDraftName($draft->getDrafterId(), $draft->getName()) ? throw new Exception() : "";
+        $current_draft_version = $this->fetchById($draft->getId());
+        if ($current_draft_version->getName() != $draft->getName() and $this->existsByDrafterAndDraftName($draft->getDrafterId(), $draft->getName())) {
+            throw new Exception();
         }
 
         foreach ($draft->getTags() as $tag_name) {
@@ -432,7 +427,6 @@ class DraftMapper extends DataMapper
             if ($this->existsByBodyUri($draft->getBodyUri())) {
                 throw new Exception();
             }
-            $current_draft_version = $this->fetchById($draft->getId());
             $this->deleteBodyContents($current_draft_version);
         }
 
