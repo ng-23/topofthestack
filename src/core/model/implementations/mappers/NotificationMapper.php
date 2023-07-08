@@ -7,13 +7,12 @@ require_once realpath(dirname(__FILE__) . '../../') . '/entities/notifications/N
 require_once realpath(dirname(__FILE__) . '../../') . '/entities/notifications/NotificationFactory.php';
 require_once realpath(dirname(__FILE__) . '../../') . '/entities/users/User.php';
 
-
 class NotificationMapper extends DataMapper
 {
     public const SORT_NEWEST_FIRST = 1;
     public const SORT_OLDEST_FIRST = 2;
     public const SORT_NO_ORDER = 3;
-    public const IMG_DIR = "resources/images";
+    public const ICON_DIR = "resources/images";
 
     private NotificationFactory $notification_factory;
     private UserMapper $user_mapper;
@@ -34,7 +33,7 @@ class NotificationMapper extends DataMapper
         $notification->setBody($notification_data["body"]);
         $notification->setId($notification_data["notification_id"]);
         $notification->setSeen((bool)$notification["seen"]);
-        $notification->setImageUri($notification_data["image_uri"]);
+        $notification->setIconUri($notification_data["icon_uri"]);
         $notification->setCreatedAt(new DateTimeImmutable(date(Notification::DATE_FORMAT, $notification_data["created_at"])));
 
         return $notification;
@@ -98,17 +97,17 @@ class NotificationMapper extends DataMapper
 
     private function saveImage(Notification $notification)
     {
-        $img_uri = $notification->getImageUri();
-        $img_file = fopen($_SERVER["DOCUMENT_ROOT"] . "/{$img_uri}", "w");
-        fwrite($img_file, $notification->getImageData());
-        fclose($img_file);
+        $icon_uri = $notification->getIconUri();
+        $icon_file = fopen($_SERVER["DOCUMENT_ROOT"] . "/{$icon_uri}", "w");
+        fwrite($icon_file, $notification->getIconImageData());
+        fclose($icon_file);
     }
 
     private function deleteImage(Notification $notification)
     {
-        $img_uri = $notification->getImageUri();
-        $img_file = $_SERVER["DOCUMENT_ROOT"] . "/{$img_uri}";;
-        unlink($img_file);
+        $icon_uri = $notification->getIconUri();
+        $icon_file = $_SERVER["DOCUMENT_ROOT"] . "/{$icon_uri}";;
+        unlink($icon_file);
     }
 
     public function existsById(int $notification_id): bool
@@ -133,14 +132,14 @@ class NotificationMapper extends DataMapper
         return $exists;
     }
 
-    public function existsByImageUri(String $image_uri): bool
+    public function existsByIconUri(String $icon_uri): bool
     {
 
         $exists = false;
 
-        $query = "SELECT `notification_id` FROM `notifications` WHERE `image_uri` = ?";
+        $query = "SELECT `notification_id` FROM `notifications` WHERE `icon_uri` = ?";
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(1, $image_uri, PDO::PARAM_STR);
+        $stmt->bindParam(1, $icon_uri, PDO::PARAM_STR);
         $stmt->execute();
 
         if ($stmt->rowCount() >= 1) {
@@ -150,13 +149,13 @@ class NotificationMapper extends DataMapper
         return $exists;
     }
 
-    public function existsByImageUriAndId(String $image_uri, int $notification_id): bool
+    public function existsByIconUriAndId(String $icon_uri, int $notification_id): bool
     {
         $exists = false;
 
-        $query = "SELECT `notification_id` FROM `notifications` WHERE `image_uri` = :img_uri AND `notification_id` = :id";
+        $query = "SELECT `notification_id` FROM `notifications` WHERE `icon_uri` = :icon_uri AND `notification_id` = :id";
         $stmt = $this->db_connection->prepare($query);
-        $stmt->bindParam(":img_uri", $image_uri, PDO::PARAM_STR);
+        $stmt->bindParam(":icon_uri", $icon_uri, PDO::PARAM_STR);
         $stmt->bindParam(":id", $notification_id, PDO::PARAM_INT);
         $stmt->execute();
 
@@ -206,29 +205,29 @@ class NotificationMapper extends DataMapper
             throw new Exception();
         }
 
-        $default_img_uri = self::IMG_DIR . "/" . Notification::DEFAULT_IMG;
-        if ($notification->getImageUri() == $default_img_uri) {
+        $default_icon_uri = self::ICON_DIR . "/" . Notification::DEFAULT_ICON;
+        if ($notification->getIconUri() == $default_icon_uri) {
             // probably shouldn't be using _SERVER like this
             // makes testing harder because now the web server has to be online
-            $default_img_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_img_uri}");
-            if ($default_img_data != $notification->getImageData()) {
+            $default_icon_img_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_icon_uri}");
+            if ($default_icon_img_data != $notification->getIconImageData()) {
                 throw new Exception();
             }
         } else {
-            if ($this->existsByImageUri($notification->getImageUri())) {
+            if ($this->existsByIconUri($notification->getIconUri())) {
                 throw new Exception();
             }
         }
 
-        $query = "INSERT INTO `notifications` (`notification_id`, `user_id`, `typ`, `header`, `body`, `image_uri`, `seen`, `created_at`) 
-                VALUES (:notification_id, :user_id, :type, :header, :body, :image_uri, :seen, :created_at)";
+        $query = "INSERT INTO `notifications` (`notification_id`, `user_id`, `typ`, `header`, `body`, `icon_uri`, `seen`, `created_at`) 
+                VALUES (:notification_id, :user_id, :type, :header, :body, :icon_uri, :seen, :created_at)";
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":notification_id", $notification->getId(), PDO::PARAM_INT);
         $stmt->bindParam(":user_id", $notification->getUserId(), PDO::PARAM_INT);
         $stmt->bindParam(":type", $notification->getType(), PDO::PARAM_INT);
         $stmt->bindParam(":header", $notification->getHeader(), PDO::PARAM_STR);
         $stmt->bindParam(":body", $notification->getBody(), PDO::PARAM_STR);
-        $stmt->bindParam(":image_uri", $notification->getImageUri(), PDO::PARAM_STR);
+        $stmt->bindParam(":icon_uri", $notification->getIconUri(), PDO::PARAM_STR);
         $stmt->bindParam(":seen", (int)$notification->wasSeen(), PDO::PARAM_INT);
         $stmt->bindParam(":created_at", $notification->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
@@ -241,7 +240,7 @@ class NotificationMapper extends DataMapper
         $notification = NULL;
 
         $query = "SELECT `notification_id`, `user_id`, `type`, `header`, `body`, 
-                `image_uri`, `seen`, `created_at` FROM `notifications`
+                `icon_uri`, `seen`, `created_at` FROM `notifications`
                 WHERE `notification_id` = ?";
 
         $stmt = $this->db_connection->prepare($query);
@@ -264,7 +263,7 @@ class NotificationMapper extends DataMapper
         $notifications = [];
 
         $query = "SELECT `notification_id`, `user_id`, `type`, `header`, `body`, 
-                `image_uri`, `seen`, `created_at` FROM `notifications`
+                `icon_uri`, `seen`, `created_at` FROM `notifications`
                 WHERE `user_id` = ?";
 
         if ($exclude_seen) {
@@ -292,7 +291,7 @@ class NotificationMapper extends DataMapper
         $notification = NULL;
 
         $query = "SELECT `notification_id`, `user_id`, `type`, `header`, `body`, 
-                `image_uri`, `seen`, `created_at` FROM `notifications`
+                `icon_uri`, `seen`, `created_at` FROM `notifications`
                 WHERE `user_id` = :user_id AND `notification_id` = :notification_id";
 
         $stmt = $this->db_connection->prepare($query);
@@ -321,15 +320,15 @@ class NotificationMapper extends DataMapper
             throw new Exception();
         }
 
-        $default_img_uri = self::IMG_DIR . "/" . Notification::DEFAULT_IMG;
-        if ($notification->getImageUri() == $default_img_uri) {
-            $default_img_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_img_uri}");
-            if ($default_img_data != $notification->getImageData()) {
+        $default_icon_uri = self::ICON_DIR . "/" . Notification::DEFAULT_ICON;
+        if ($notification->getIconUri() == $default_icon_uri) {
+            $default_icon_img_data = file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$default_icon_uri}");
+            if ($default_icon_img_data != $notification->getIconImageData()) {
                 throw new Exception();
             }
         } else {
-            if (!$this->existsByImageUriAndId($notification->getImageUri(), $notification->getId())) {
-                if ($this->existsByImageUri($notification->getImageUri())) {
+            if (!$this->existsByIconUriAndId($notification->getIconUri(), $notification->getId())) {
+                if ($this->existsByIconUri($notification->getIconUri())) {
                     throw new Exception();
                 }
                 // don't delete the image associated with default uri
@@ -340,13 +339,13 @@ class NotificationMapper extends DataMapper
 
         // you cannot change the notification or user id, nor the notification type
         // probably shouldn't be able to update created_at (this goes for most other mappers too)
-        $query = "UPDATE `notifications` SET `header` = :header,`body` = :body, `image_uri` = :img_uri, 
+        $query = "UPDATE `notifications` SET `header` = :header,`body` = :body, `icon_uri` = :icon_uri, 
                 `seen` = :seen, `created_at` = :created_at WHERE `notification_id` = :notification_id";
         $stmt = $this->db_connection->prepare($query);
         $stmt->bindParam(":notification_id", $notification->getId(), PDO::PARAM_INT);
         $stmt->bindParam(":header", $notification->getHeader(), PDO::PARAM_STR);
         $stmt->bindParam(":body", $notification->getBody(), PDO::PARAM_STR);
-        $stmt->bindParam(":image_uri", $notification->getImageUri(), PDO::PARAM_STR);
+        $stmt->bindParam(":icon_uri", $notification->getIconUri(), PDO::PARAM_STR);
         $stmt->bindParam(":seen", (int)$notification->wasSeen(), PDO::PARAM_INT);
         $stmt->bindParam(":created_at", $notification->getCreatedAt()->getTimestamp(), PDO::PARAM_INT);
         $stmt->execute();
