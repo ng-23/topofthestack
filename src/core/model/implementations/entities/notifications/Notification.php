@@ -17,14 +17,12 @@ class Notification extends Entity
     public const DATE_FORMAT = "Y-m-d H:i:s";
     public const MAX_HEADER_LEN = 64;
     public const MAX_BODY_LEN = 150;
-    public const MIN_IMG_URI_LEN = 5;
-    public const MAX_IMG_URI_LEN = 255;
-    public const DEFAULT_IMG = "logo_small1.png";
+    public const DEFAULT_ICON = "logo_small1.png";
 
     private int $user_id;
     private int $type;
     private String $header, $body;
-    private String $image_uri, $image_data;
+    private String $icon_uri, $icon_img_data;
     private bool $seen;
     private DateTimeImmutable $created_at;
 
@@ -37,7 +35,7 @@ class Notification extends Entity
         $this->body = $this->setBody($body);
         $this->seen = false;
         $this->setCreatedAt(NULL);
-        $this->setImageUri(NULL);
+        $this->setIconUri(NULL);
     }
 
     public function getUserId(): int
@@ -60,14 +58,14 @@ class Notification extends Entity
         return $this->body;
     }
 
-    public function getImageUri(): String
+    public function getIconUri(): String
     {
-        return $this->image_uri;
+        return $this->icon_uri;
     }
 
-    public function getImageData(): String
+    public function getIconImageData(): String
     {
-        return $this->image_data;
+        return $this->icon_img_data;
     }
 
     public function wasSeen(): bool
@@ -107,39 +105,30 @@ class Notification extends Entity
         $this->seen = $seen;
     }
 
-    public function setImageUri(?String $uri)
+    public function setIconUri(?String $uri)
     {
         if ($uri) {
             $uri_len = strlen($uri);
-            if ($uri_len < self::MIN_IMG_URI_LEN or $uri_len > self::MAX_IMG_URI_LEN) {
+            if ($uri_len < PublishedBlog::MIN_URI_LEN or $uri_len > PublishedBlog::MAX_URI_LEN) {
                 throw new Exception();
             }
-            $this->image_uri = $uri;
+            $this->icon_uri = $uri;
         } else {
-            $this->image_uri = NotificationMapper::IMG_DIR . "/" . self::DEFAULT_IMG;
+            $this->icon_uri = NotificationMapper::ICON_DIR . "/" . self::DEFAULT_ICON;
 
-            $this->setImageData(file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$this->image_uri}"));
+            $this->setIconImageData(file_get_contents($_SERVER["DOCUMENT_ROOT"] . "/{$this->icon_uri}"));
         }
     }
 
-    /**
-     * bug: someone could set the default uri
-     * then overwrite its image data and save
-     * need to prevent that somehow
-     * bug exists in other classes with image URI stuff, but fix it later...
-     */
-    public function setImageData(String $image_data)
+    public function setIconImageData(String $icon_img_data)
     {
-        $size_in_bytes = strlen($image_data);
-        if ($size_in_bytes == 0 or $size_in_bytes > UserMapper::PFP_MAX_FILE_SIZE_MB * User::BYTES_IN_MB) {
+        // TODO: consider reimplmenting icon file size check...
+
+        if (!is_png($icon_img_data) or !is_jpg($icon_img_data)) {
             throw new Exception();
         }
 
-        if (!is_png($image_data) or !is_jpg($image_data)) {
-            throw new Exception();
-        }
-
-        $this->image_data = $image_data;
+        $this->icon_img_data = $icon_img_data;
     }
 
     public function setHeader(String $header)
