@@ -14,9 +14,6 @@ class User extends Entity
     public const DISPLAY_NAME_REGEX = "#^[a-zA-Z][a-zA-Z0-9._-]{" . self::MIN_DISPLAY_NAME_LEN - 1 . "," . self::MAX_DISPLAY_NAME_LEN - 1 . "}$#";
     public const MAX_BIO_LEN = 125;
     public const COUNTRY_CODE_LEN = 2;
-    public const MIN_PFP_URI_LEN = 5;
-    public const MAX_PFP_URI_LEN = 255;
-    public const BYTES_IN_MB = 1000000;
     public const DEFAULT_PFPS = ["pfp_default01.png", "pfp_default02.png", "pfp_default03.png", "pfp_default04.png"];
 
     private String $display_name;
@@ -179,7 +176,7 @@ class User extends Entity
     {
         if ($uri) {
             $uri_len = strlen($uri);
-            if ($uri_len < self::MIN_PFP_URI_LEN or $uri_len > self::MAX_PFP_URI_LEN) {
+            if ($uri_len < PublishedBlog::MIN_URI_LEN or $uri_len > PublishedBlog::MAX_URI_LEN) {
                 throw new Exception();
             }
             $this->pfp_uri = $uri;
@@ -214,10 +211,7 @@ class User extends Entity
          * see https://stackoverflow.com/questions/15117303/saving-image-straight-to-directory-in-php
          */
 
-        $size_in_bytes = strlen($image_data);
-        if ($size_in_bytes == 0 or $size_in_bytes > UserMapper::PFP_MAX_FILE_SIZE_MB * self::BYTES_IN_MB) {
-            throw new Exception();
-        }
+        // TODO: consider reimplementing pfp file size check...
 
         if (!is_png($image_data) or !is_jpg($image_data)) {
             throw new Exception();
