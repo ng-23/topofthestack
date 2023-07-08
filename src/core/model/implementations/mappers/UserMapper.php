@@ -83,7 +83,7 @@ class UserMapper extends DataMapper
         if (str_starts_with($uri, self::PFP_DIR)) {
             $file_name = substr($uri, strlen(self::PFP_DIR));
             // can't exceed maximum uri length
-            if (strlen(self::PFP_DIR) + strlen($file_name) <= User::MAX_PFP_URI_LEN) {
+            if (strlen(self::PFP_DIR) + strlen($file_name) <= PublishedBlog::MAX_URI_LEN) {
                 // file_name can't contain certain characters
                 $has_valid_chars = preg_match(self::PFP_FILE_NAME_REGEX, $file_name);
                 if ($has_valid_chars) {
