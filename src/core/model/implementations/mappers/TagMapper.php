@@ -66,7 +66,7 @@ class TagMapper extends DataMapper
         return $sort_order_str;
     }
 
-    public function existsById(int $tag_id)
+    public function existsById(int $tag_id): bool
     {
         $exists = false;
 
@@ -77,7 +77,7 @@ class TagMapper extends DataMapper
         return $exists;
     }
 
-    public function existsByName(String $tag_name)
+    public function existsByName(String $tag_name): bool
     {
         $exists = false;
 
@@ -159,7 +159,7 @@ class TagMapper extends DataMapper
         return $tag;
     }
 
-    public function fetchByTotalTaggedWith(int $amount = 1, int $offset = 0, int $sort_order = self::SORT_DESC_ORDER)
+    public function fetchByTotalTaggedWith(int $amount = 1, int $offset = 0, int $sort_order = self::SORT_DESC_ORDER): array
     {
         if ($amount < 0 || $offset < 0) {
             throw new Exception();
@@ -186,7 +186,7 @@ class TagMapper extends DataMapper
         return $tags;
     }
 
-    public function fetchByTaggedWithToday(int $amount = 1, int $offset = 0, int $sort_order = self::SORT_DESC_ORDER)
+    public function fetchByTaggedWithToday(int $amount = 1, int $offset = 0, int $sort_order = self::SORT_DESC_ORDER): array
     {
         if ($amount < 0 || $offset < 0) {
             throw new Exception();
@@ -213,7 +213,7 @@ class TagMapper extends DataMapper
         return $tags;
     }
 
-    public function fetchByBlogId(int $blog_id)
+    public function fetchByBlogId(int $blog_id): array
     {
         $tags = [];
 
@@ -233,7 +233,7 @@ class TagMapper extends DataMapper
         return $tags;
     }
 
-    public function fetchByDraftId(int $draft_id)
+    public function fetchByDraftId(int $draft_id): array
     {
         $tags = [];
 
@@ -279,7 +279,7 @@ class TagMapper extends DataMapper
         $stmt->execute();
     }
 
-    public function deleteById(int $tag_id)
+    public function deleteById(int $tag_id): ?Tag
     {
         $tag = NULL;
 
@@ -299,7 +299,7 @@ class TagMapper extends DataMapper
         return $tag;
     }
 
-    public function deleteByName(String $tag_name)
+    public function deleteByName(String $tag_name): ?Tag
     {
         $tag = NULL;
 
