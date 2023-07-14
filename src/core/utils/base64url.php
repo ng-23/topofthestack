@@ -4,6 +4,8 @@
 
 declare(strict_types=1);
 
+namespace tots\Utils;
+
 function base64url_encode(String $data) {
     return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
 }

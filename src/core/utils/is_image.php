@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace tots\Utils;
+
 // taken from comment https://www.php.net/manual/en/function.exif-imagetype.php#113253
 
 function is_jpeg(String $image_data): bool

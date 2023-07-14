@@ -1,5 +1,7 @@
 <?php
 
+namespace tots\Utils;
+
 /**
  * Randomly generates a username consisting of an adjective, noun, and 1-3 digit number
  */

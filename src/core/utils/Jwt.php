@@ -2,7 +2,15 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . "/base64url.php";
+namespace tots\Utils;
+
+/**
+ * why not use an actual JWT implementation?
+ * i forget why i went out of my way to do this but i don't see a reason to use this
+ * instead of a 3rd party library JWT implementation
+ * sure it's an added dependency, but that's not a huge deal
+ * not like i'm missing out on valuable coding experience by using someone else's JWT implementation...
+ */
 
 class Jwt
 {
