@@ -14,6 +14,9 @@ use tots\Exceptions\BadDisplayNameException;
 use tots\Exceptions\BadFileUploadException;
 use tots\Exceptions\BadSettingNameException;
 use tots\Mappers\UserMapper;
+use function tots\Utils\generate_display_name;
+use function tots\Utils\is_png;
+use function tots\Utils\is_jpg;
 
 class User extends Entity
 {
