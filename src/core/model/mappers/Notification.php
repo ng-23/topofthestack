@@ -137,32 +137,6 @@ class NotificationMapper extends DataMapper
 
     public function existsByIconUri(String $icon_uri): bool
     {
-        /**
-         * i just realized that if 2 notifications use the default image_uri
-         * or if 2 users have the same default pfp_uri
-         * this all falls apart...
-         * how do you handle multiple entities with the same default URIs?
-         * how do you prevent overwriting contents of images associated with defualt URIs?
-         */
-
-        /**
-         * for one, entities shouldn't care about default URIs and mismatching image data
-         * just keep those setters and their logic as-is
-         * it should be the mappers that check if an entity has a default URI, and if so, if the image data the same
-         * because that only matter when we're actually persisting any changes - otherwise, it's no big deal
-         * same reason you don't check for duplicate IDs in entities and instead do that in the mappers
-         * 
-         * when saving or updating an entity, any time a default URI is detected, need to handle things a little differently
-         * namely, if the URI is a default one, check if the image data is default as well
-         * if it isn't, throw an error or otherwise indicate that you can't change the image data of default URIs
-         * also, normally when saving/updating an image URI, we check that the uri isn't the same for the user and that it isn't 
-         * already taken by another user
-         * with default URIs, neither check is appropriate
-         * instead, will need a check that determines if the URI is default
-         * if it is, check that the image data we're updating/saving is also default, and if it isn't, error out
-         * otherwise, just skip the aforementioned normal checks and write the contents
-         */
-
         $exists = false;
 
         $query = "SELECT `notification_id` FROM `notifications` WHERE `icon_uri` = ?";
@@ -194,38 +168,8 @@ class NotificationMapper extends DataMapper
         return $exists;
     }
 
-    /**
-     * I don't want to save every notification forever
-     * User's should have an "inbox" that stores notifications
-     * This isn't a database table; it should be an object
-     * The inbox would have a max size - say 50 - and after reaching that size, ...
-     * What should happen? No new notifications added? Seen notifications dropped? Oldest notifications (seen/unseen) dropped?
-     * Maybe it's dumb to put a cap on the number of notifications
-     * Maybe it's dumb to keep notifications after they've been seen
-     * How about have an event in the DB that periodically cleans the inbox
-     * If the inbox isn't full, do nothing
-     * Otherwise, first look for seen notifications, and delete the oldest one
-     * If all the notifications are unseen, just delete the oldest one
-     * This event would even have to be periodic - it could just be a trigger
-     * When a new notification is being "sent" to the user, that's really an insert on the notifications table
-     * So have an on insert trigger that first checks if the inbox isn't full, and if it is, do the cleaning outlined above
-     * My only gripe with this is that a tiny bit of what I would consider "business logic" is in the DB in the form of the inbox size
-     * Although I guess technically you could do all the insertion logic in the save method of this mapper (right?)
-     * Functionally the same, but no business logic bleeding into the DB
-     * see https://ux.stackexchange.com/questions/111290/should-notifications-be-deleted-if-the-action-that-created-them-is-reversed
-     * just keep all the notifications i guess, instead of messing around with inbox sizes and what not...
-     */
     public function save(Notification $notification)
     {
-        /**
-         * Should the mapper be responsible for determine if the notification is allowed to be sent or not?
-         * like if the user has disabled notifications from follow requests, and we're trying to insert a notification for a follow request
-         * should the mapper be the one to throw an error indicating that setting?
-         * if not the mapper, it would have to be a service...
-         * i think it should be the mapper, since ultimately the mapper is what inserts the record
-         * and it shouldn't be designed such that you have to go through a service first to check the receiving user's settings
-         */
-
         if ($this->existsById($notification->getId())) {
             throw new Exception();
         }
@@ -235,21 +179,6 @@ class NotificationMapper extends DataMapper
         }
 
         // check that user's settings permit sending this type of notification
-        /**
-         * is this a violation of single responsibility principle?
-         * in other words, should we not be doing this check in this method? should it be done in (for example) a service instead?
-         * i ask this because eventually I will need a mapper for the followers/following table
-         * and when inserting a record into that table (aka, initiating a follower request), should that also send a notification
-         * if permitted by the followee's settings?
-         * i can see both sides, but personally I kind of lean towards yes, it should, since it just seems natural/logical
-         * still, it's called the save method, not the saveAndSendANotificationIfPossible method...
-         * i think this check below is actually different from aforementioned scenario though, since it's business logic (a check) and
-         * not an action (sending something)
-         * so it's fine to check settings here, but when doing something like sending a notification, that should be done separately from
-         * the insert method
-         * also, this applies to the blog and comment mappers - need to send notifications when a blog is posted to followers and send
-         * a notification when a comment is made on someone's blog
-         */
         if (!$this->checkUserSettingsAllowNotification($notification->getUserId(), $notification->getType())) {
             throw new Exception();
         }
