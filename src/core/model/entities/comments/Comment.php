@@ -6,7 +6,6 @@ namespace tots\Entities\Comments;
 
 use tots\Entities\Entity;
 use DateTimeImmutable;
-use Exception;
 use LengthException;
 use ReflectionClass;
 use tots\Exceptions\BadIdException;
@@ -24,7 +23,12 @@ class Comment extends Entity
 
     public function __construct(int $commentor_id, int $blog_id, String $contents, ?int $comment_id = NULL)
     {
-        $this->id = $comment_id;
+        $this->setId($comment_id);
+
+        if ($commentor_id <= 0 or $blog_id <= 0) {
+            throw new BadIdException("ID must be greater than 0", $code = BadIdException::ID_OUT_OF_RANGE);
+        }
+
         $this->commentor_id = $commentor_id;
         $this->blog_id = $blog_id;
 
@@ -68,8 +72,7 @@ class Comment extends Entity
     public function setId(?int $comment_id)
     {
         if ($comment_id and $comment_id <= 0) {
-            // BadIdException
-            throw new BadIdException();
+            throw new BadIdException("Comment ID must be greater than 0", $code = BadIdException::ID_OUT_OF_RANGE);
         }
 
         $this->id = $comment_id;
